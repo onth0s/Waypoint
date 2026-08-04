@@ -59,8 +59,10 @@ def _store(cmd: Command, console: Console) -> int:
     else:
         target_path = os.path.abspath(os.path.expanduser(arg))
 
-    if not os.path.isdir(target_path):
-        err(console, f"not a directory: {target_path}")
+    try:
+        os.makedirs(target_path, exist_ok=True)
+    except OSError as e:
+        err(console, f"cannot create directory {target_path}: {e}")
         return EXIT_ERROR
 
     store.save_config_home(target_path)

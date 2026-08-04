@@ -83,7 +83,7 @@ The parser is greedy on aliases. `wp <anything>` resolves as:
 
 This means `wp dev` goes to the "dev" bookmark. `wp add` runs the add subcommand. No disambiguation needed — reserved words are a small, closed set.
 
-Reserved keywords: `add`, `rm`, `ls`, `list`, `default`, `set`, `store`, `config`, `help`, `undo`, `u`, `history`, `h`, `.`, `-vs`, `-h`, `-?`
+Reserved keywords: `add`, `rm`, `ls`, `list`, `default`, `set`, `store`, `config`, `help`, `undo`, `u`, `history`, `h`, `.`, `-vs`, `-h`, `-?` (plus `_record_history`, reserved for internal wrapper use)
 
 ### Default bookmark
 
@@ -114,7 +114,7 @@ default: wp
 - "C:\\Users\\you\\dev"
 ```
 
-The origins of every successful `wp` jump, oldest first. Missing file = empty history. Written atomically alongside `waypoint.yaml` and trimmed to the newest 50 entries; the CLI's undo walks it newest-first.
+The origins of directory navigations (both `cd` and `wp` jumps recorded by the PowerShell wrapper, automatically deduped), oldest first. Missing file = empty history. Written atomically alongside `waypoint.yaml` and trimmed to the newest 50 entries; the CLI's undo walks it newest-first.
 
 ### `wp set`
 

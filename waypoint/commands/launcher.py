@@ -18,9 +18,8 @@ __all__ = ["_open", "_help"]
 def _open(kind: str, console: Console) -> int:
     b = store.load_bookmarks()
     target = _default_target(b, console)
-    if target is None:
+    if target is None or b.default is None:
         return EXIT_ERROR
-    assert b.default is not None  # _default_target only returns a target when one exists
     if not _require_dir(target, b.default, console):
         return EXIT_ERROR
     app = "Explorer" if kind == "explorer" else "VS Code"

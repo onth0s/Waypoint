@@ -4,7 +4,27 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-__all__ = ["RESERVED", "Command", "UsageError", "parse_args", "validate_alias", "looks_like_path"]
+__all__ = [
+    "RESERVED",
+    "Command",
+    "NavCmd",
+    "AddCmd",
+    "RmCmd",
+    "LsCmd",
+    "DefaultCmd",
+    "SetCmd",
+    "ConfigCmd",
+    "StoreCmd",
+    "HelpCmd",
+    "HistoryCmd",
+    "UndoCmd",
+    "OpenCmd",
+    "RecordHistoryCmd",
+    "UsageError",
+    "parse_args",
+    "validate_alias",
+    "looks_like_path",
+]
 
 # `config` joins README's reserved list so that `wp config home <path>` (README,
 # Data section) parses instead of being treated as a bookmark named "config".
@@ -35,63 +55,140 @@ class UsageError(Exception):
 
 
 @dataclass
-class Command:
-    kind: str  # nav | add | rm | ls | default | set | config | help | explorer | code
-    args: list[str | None]  # shape is per-kind, see parse_args
+class NavCmd:
+    alias: str | None = None
+
+
+@dataclass
+class AddCmd:
+    alias: str | None = None
+    path: str | None = None
+
+
+@dataclass
+class RmCmd:
+    alias: str
+
+
+@dataclass
+class LsCmd:
+    pass
+
+
+@dataclass
+class DefaultCmd:
+    arg: str
+
+
+@dataclass
+class SetCmd:
+    arg: str | None = None
+
+
+@dataclass
+class ConfigCmd:
+    target: str | None = None
+
+
+@dataclass
+class StoreCmd:
+    arg: str | None = None
+
+
+@dataclass
+class HelpCmd:
+    pass
+
+
+@dataclass
+class HistoryCmd:
+    full: bool = False
+
+
+@dataclass
+class UndoCmd:
+    steps: int = 1
+
+
+@dataclass
+class OpenCmd:
+    kind: str  # "explorer" or "code"
+
+
+@dataclass
+class RecordHistoryCmd:
+    origin: str
+
+
+Command = (
+    NavCmd
+    | AddCmd
+    | RmCmd
+    | LsCmd
+    | DefaultCmd
+    | SetCmd
+    | ConfigCmd
+    | StoreCmd
+    | HelpCmd
+    | HistoryCmd
+    | UndoCmd
+    | OpenCmd
+    | RecordHistoryCmd
+)
 
 
 def parse_args(argv: list[str]) -> Command:
     """Parse the arguments after `wp`. First token: reserved keyword or bookmark alias."""
     if not argv:
-        return Command(kind="nav", args=[])
+        return NavCmd()
     head, rest = argv[0], argv[1:]
     if head not in RESERVED:
-        return Command(kind="nav", args=[head])
+        return NavCmd(alias=head)
     if head == "_record_history":
         _require(rest, 1, "usage: wp _record_history <path>")
-        return Command(kind="record_history", args=[rest[0]])
+        return RecordHistoryCmd(origin=rest[0])
     if head in ("help", "-h", "-?"):
         _require(rest, 0, "wp help takes no arguments")
-        return Command(kind="help", args=[])
+        return HelpCmd()
     if head in ("history", "h"):
         return _parse_history(rest)
     if head in ("undo", "u"):
         return _parse_undo(rest)
     if head in (".", "-vs"):
         _require(rest, 0, f"wp {head} takes no arguments")
-        return Command(kind="explorer" if head == "." else "code", args=[])
+        return OpenCmd(kind="explorer" if head == "." else "code")
     if head in ("ls", "list"):
         _require(rest, 0, f"wp {head} takes no arguments")
-        return Command(kind="ls", args=[])
+        return LsCmd()
     if head == "add":
         return _parse_add(rest)
     if head == "rm":
         _require(rest, 1, "usage: wp rm <alias>")
-        return Command(kind="rm", args=[rest[0]])
+        return RmCmd(alias=rest[0])
     if head == "default":
         _require(rest, 1, "usage: wp default <alias|path>")
-        return Command(kind="default", args=[rest[0]])
+        return DefaultCmd(arg=rest[0])
     if head == "set":
         if len(rest) > 1:
             raise UsageError("usage: wp set [alias|path]")
         if not rest:
-            return Command(kind="set", args=[None])
+            return SetCmd(arg=None)
         if rest[0] == ".":
-            return Command(kind="set", args=["."])
-        return Command(kind="set", args=[rest[0]])
+            return SetCmd(arg=".")
+        return SetCmd(arg=rest[0])
     if head == "store":
         if not rest:
-            return Command(kind="store", args=[None])
+            return StoreCmd(arg=None)
         if len(rest) == 1:
-            return Command(kind="store", args=[rest[0]])
+            return StoreCmd(arg=rest[0])
         raise UsageError("usage: wp store [alias|path]")
     # config
     if not rest:
-        return Command(kind="config", args=[None])
+        return ConfigCmd(target=None)
     if rest == ["home"]:
         raise UsageError("usage: wp config home <path>")
     if len(rest) == 2 and rest[0] == "home":
-        return Command(kind="config", args=["home", rest[1]])
+        return ConfigCmd(target=rest[1])
     raise UsageError("usage: wp config [home <path>]")
 
 
@@ -101,9 +198,9 @@ FULL_FLAGS = ("--full", "--all", "full", "all", "f", "a")
 def _parse_history(rest: list[str]) -> Command:
     """`wp history` shows the default window; a full flag shows the whole stack."""
     if not rest:
-        return Command(kind="history", args=[None])
+        return HistoryCmd(full=False)
     if len(rest) == 1 and rest[0] in FULL_FLAGS:
-        return Command(kind="history", args=["all"])
+        return HistoryCmd(full=True)
     raise UsageError("usage: wp history [--full|--all|full|all|f|a]")
 
 
@@ -112,29 +209,29 @@ def _parse_undo(rest: list[str]) -> Command:
     if len(rest) > 1:
         raise UsageError("usage: wp undo [N]")
     if not rest:
-        return Command(kind="undo", args=[None])
+        return UndoCmd(steps=1)
     n = rest[0]
     if not n.isdigit() or int(n) < 1:
         raise UsageError("usage: wp undo [N]  (N must be a positive integer)")
-    return Command(kind="undo", args=[n])
+    return UndoCmd(steps=int(n))
 
 
 def _parse_add(rest: list[str]) -> Command:
     if len(rest) > 2:
         raise UsageError("usage: wp add [alias] [path]")
     if len(rest) == 0:
-        return Command(kind="add", args=[None, None])
+        return AddCmd(alias=None, path=None)
     if len(rest) == 1:
         arg = rest[0]
         if arg == "." or looks_like_path(arg):
             # Path-form: bookmark this path, prompt for a name.
-            return Command(kind="add", args=[None, arg])
-        return Command(kind="add", args=[arg, None])
+            return AddCmd(alias=None, path=arg)
+        return AddCmd(alias=arg, path=None)
     # Two args: <alias> <path>. `wp add . dev` is shorthand for `wp add dev .`.
     alias, path = rest
     if alias == ".":
         alias, path = path, "."
-    return Command(kind="add", args=[alias, path])
+    return AddCmd(alias=alias, path=path)
 
 
 def looks_like_path(arg: str) -> bool:

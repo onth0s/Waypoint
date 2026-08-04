@@ -17,25 +17,32 @@ import sys
 from rich.console import Console
 
 from waypoint import store
-from waypoint.commands import (
-    _add,
-    _config,
-    _default,
-    _help,
-    _history,
-    _ls,
-    _nav,
-    _open,
-    _record_history_entry,
-    _rm,
-    _set,
-    _store,
-    _undo,
-)
+from waypoint.commands.bookmarks import _add, _default, _ls, _rm, _set
+from waypoint.commands.config import _config, _store
+from waypoint.commands.history import _history, _record_history_entry, _undo
+from waypoint.commands.launcher import _help, _open
+from waypoint.commands.nav import _nav
 from waypoint.constants import EXIT_ERROR, EXIT_USAGE
 from waypoint.output import err, hint
 from waypoint.prompts import _Cancelled
-from waypoint.resolver import Command, UsageError, parse_args
+from waypoint.resolver import (
+    AddCmd,
+    Command,
+    ConfigCmd,
+    DefaultCmd,
+    HelpCmd,
+    HistoryCmd,
+    LsCmd,
+    NavCmd,
+    OpenCmd,
+    RecordHistoryCmd,
+    RmCmd,
+    SetCmd,
+    StoreCmd,
+    UndoCmd,
+    UsageError,
+    parse_args,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -77,30 +84,30 @@ def main(argv: list[str] | None = None) -> int:
 
 def dispatch(cmd: Command, console: Console) -> int:
     """Route a parsed command to its handler."""
-    if cmd.kind == "record_history":
+    if isinstance(cmd, RecordHistoryCmd):
         return _record_history_entry(cmd)
-    if cmd.kind == "nav":
+    if isinstance(cmd, NavCmd):
         return _nav(cmd, console)
-    if cmd.kind == "undo":
+    if isinstance(cmd, UndoCmd):
         return _undo(cmd, console)
-    if cmd.kind == "history":
+    if isinstance(cmd, HistoryCmd):
         return _history(cmd, console)
-    if cmd.kind == "add":
+    if isinstance(cmd, AddCmd):
         return _add(cmd, console)
-    if cmd.kind == "rm":
+    if isinstance(cmd, RmCmd):
         return _rm(cmd, console)
-    if cmd.kind == "ls":
+    if isinstance(cmd, LsCmd):
         return _ls(console)
-    if cmd.kind == "default":
+    if isinstance(cmd, DefaultCmd):
         return _default(cmd, console)
-    if cmd.kind == "set":
+    if isinstance(cmd, SetCmd):
         return _set(cmd, console)
-    if cmd.kind == "config":
+    if isinstance(cmd, ConfigCmd):
         return _config(cmd, console)
-    if cmd.kind == "store":
+    if isinstance(cmd, StoreCmd):
         return _store(cmd, console)
-    if cmd.kind == "help":
+    if isinstance(cmd, HelpCmd):
         return _help(console)
-    if cmd.kind in ("explorer", "code"):
+    if isinstance(cmd, OpenCmd):
         return _open(cmd.kind, console)
-    raise UsageError(f"unknown command: {cmd.kind}")  # safety net for future command kinds
+    raise UsageError(f"unknown command: {cmd}")

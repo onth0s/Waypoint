@@ -11,13 +11,13 @@ from waypoint import clipboard, store
 from waypoint.constants import EXIT_ERROR, EXIT_OK, TEMP_SLOT
 from waypoint.output import err, hint, ok, warn
 from waypoint.prompts import prompt_name
-from waypoint.resolver import Command, looks_like_path
+from waypoint.resolver import AddCmd, DefaultCmd, RmCmd, SetCmd, looks_like_path
 
 __all__ = ["_add", "_rm", "_ls", "_default", "_set", "_set_temp_slot"]
 
 
-def _add(cmd: Command, console: Console) -> int:
-    explicit_alias, path_arg = cmd.args[0], cmd.args[1]
+def _add(cmd: AddCmd, console: Console) -> int:
+    explicit_alias, path_arg = cmd.alias, cmd.path
     b = store.load_bookmarks()
     if path_arg is not None:
         target = os.path.abspath(os.path.expanduser(path_arg))
@@ -36,9 +36,8 @@ def _add(cmd: Command, console: Console) -> int:
     return EXIT_OK
 
 
-def _rm(cmd: Command, console: Console) -> int:
-    alias = cmd.args[0]
-    assert alias is not None
+def _rm(cmd: RmCmd, console: Console) -> int:
+    alias = cmd.alias
     b = store.load_bookmarks()
     if (
         alias not in b.bookmarks
@@ -86,9 +85,8 @@ def _set_temp_slot(target: str, b: store.Bookmarks, console: Console) -> int:
     return EXIT_OK
 
 
-def _default(cmd: Command, console: Console) -> int:
-    arg = cmd.args[0]
-    assert arg is not None  # parse_args requires exactly one arg for default
+def _default(cmd: DefaultCmd, console: Console) -> int:
+    arg = cmd.arg
     b = store.load_bookmarks()
     if arg == ".":
         return _set_temp_slot(os.getcwd(), b, console)
@@ -102,8 +100,8 @@ def _default(cmd: Command, console: Console) -> int:
     raise store.BookmarkNotFoundError(arg)
 
 
-def _set(cmd: Command, console: Console) -> int:
-    arg = cmd.args[0]
+def _set(cmd: SetCmd, console: Console) -> int:
+    arg = cmd.arg
     b = store.load_bookmarks()
     if arg == ".":
         return _set_temp_slot(os.getcwd(), b, console)

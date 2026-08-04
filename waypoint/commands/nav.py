@@ -10,7 +10,7 @@ from rich.console import Console
 from waypoint import store
 from waypoint.constants import EXIT_ERROR, EXIT_OK
 from waypoint.output import err, hint
-from waypoint.resolver import Command
+from waypoint.resolver import NavCmd
 
 __all__ = ["_nav", "_default_target", "_require_dir", "_record_origin"]
 
@@ -26,11 +26,10 @@ def _record_origin(target: str) -> None:
     store.save_history(entries + [origin])
 
 
-def _nav(cmd: Command, console: Console) -> int:
+def _nav(cmd: NavCmd, console: Console) -> int:
     b = store.load_bookmarks()
-    if cmd.args:
-        alias = cmd.args[0]
-        assert alias is not None  # parse_args always fills nav args with a str
+    if cmd.alias is not None:
+        alias = cmd.alias
         target = b.bookmarks.get(alias)
         if target is None:
             err(console, f"No bookmark {alias!r}.")
@@ -40,9 +39,8 @@ def _nav(cmd: Command, console: Console) -> int:
             return EXIT_ERROR
     else:
         target = _default_target(b, console)
-        if target is None:
+        if target is None or b.default is None:
             return EXIT_ERROR
-        assert b.default is not None  # _default_target only returns a target when one exists
         if not _require_dir(target, b.default, console):
             return EXIT_ERROR
     _record_origin(target)

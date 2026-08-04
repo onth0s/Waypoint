@@ -9,20 +9,19 @@ from rich.console import Console
 from waypoint import store
 from waypoint.constants import EXIT_ERROR, EXIT_OK
 from waypoint.output import err, ok
-from waypoint.resolver import Command
+from waypoint.resolver import ConfigCmd, StoreCmd
 
 __all__ = ["_config", "_store"]
 
 
-def _config(cmd: Command, console: Console) -> int:
-    if cmd.args[0] is None:
+def _config(cmd: ConfigCmd, console: Console) -> int:
+    if cmd.target is None:
         # Labeled line, never a bare path: the wrapper's cd discriminator must
         # not mistake this for a navigation target. soft_wrap keeps the long
         # path on one line instead of wrapping it onto a bare-path-looking line.
         console.print(f"home: {store.data_dir()}", soft_wrap=True)
         return EXIT_OK
-    target = cmd.args[1]
-    assert target is not None  # args[0] non-None implies a (key, value) pair
+    target = cmd.target
     if target.strip().lower() == "null":
         # Documented default (config.yaml: `home: null` = project dir).
         store.save_config_home(None)
@@ -34,9 +33,9 @@ def _config(cmd: Command, console: Console) -> int:
     return EXIT_OK
 
 
-def _store(cmd: Command, console: Console) -> int:
+def _store(cmd: StoreCmd, console: Console) -> int:
     """Handle `wp store` / `wp store <alias|path>`."""
-    if cmd.args[0] is None:
+    if cmd.arg is None:
         b_path, h_path = store.bookmarks_path(), store.history_path()
         console.print(f"[bold cyan]bookmarks:[/bold cyan] [cyan]{b_path}[/cyan]", soft_wrap=True)
         console.print(
@@ -44,8 +43,7 @@ def _store(cmd: Command, console: Console) -> int:
             soft_wrap=True,
         )
         return EXIT_OK
-    arg = cmd.args[0]
-    assert arg is not None
+    arg = cmd.arg
 
     b = store.load_bookmarks()
     if arg in b.bookmarks:
@@ -68,5 +66,3 @@ def _store(cmd: Command, console: Console) -> int:
     store.save_config_home(target_path)
     ok(console, f"Store home set to {target_path}")
     return EXIT_OK
-
-

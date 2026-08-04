@@ -3,9 +3,9 @@ from __future__ import annotations
 from rich.console import Console
 
 from waypoint import store
-from waypoint.commands import _add, _ls, _rm
+from waypoint.commands.bookmarks import _add, _ls, _rm
 from waypoint.constants import EXIT_OK
-from waypoint.resolver import Command
+from waypoint.resolver import AddCmd, RmCmd
 
 
 def test_add_explicit_alias_and_path(tmp_path, capsys):
@@ -13,7 +13,7 @@ def test_add_explicit_alias_and_path(tmp_path, capsys):
     target = tmp_path / "work"
     target.mkdir()
 
-    cmd = Command(kind="add", args=["work", str(target)])
+    cmd = AddCmd(alias="work", path=str(target))
     rc = _add(cmd, console)
     assert rc == EXIT_OK
 
@@ -28,7 +28,7 @@ def test_rm_bookmark(tmp_path, capsys):
     b = store.Bookmarks(bookmarks={"work": str(target)}, default="work")
     store.save_bookmarks(b)
 
-    cmd = Command(kind="rm", args=["work"])
+    cmd = RmCmd(alias="work")
     rc = _rm(cmd, console)
     assert rc == EXIT_OK
 
@@ -61,7 +61,7 @@ def test_rm_star_alias_vs_suffix(tmp_path):
     store.save_bookmarks(b)
 
     # wp rm dev* removes dev*, leaving dev
-    cmd = Command(kind="rm", args=["dev*"])
+    cmd = RmCmd(alias="dev*")
     rc = _rm(cmd, console)
     assert rc == EXIT_OK
     b = store.load_bookmarks()
@@ -70,7 +70,7 @@ def test_rm_star_alias_vs_suffix(tmp_path):
     assert b.default == "dev"
 
     # wp rm "dev *" removes default dev (using ls label syntax)
-    cmd = Command(kind="rm", args=["dev *"])
+    cmd = RmCmd(alias="dev *")
     rc = _rm(cmd, console)
     assert rc == EXIT_OK
     b = store.load_bookmarks()
@@ -85,4 +85,3 @@ def test_ls_empty_bookmarks(capsys):
     out = capsys.readouterr().out
     assert rc == EXIT_OK
     assert "No bookmarks yet" in out
-

@@ -30,7 +30,7 @@ wp add <alias>          → bookmark current dir as <alias>
 wp add <alias> <path>   → bookmark <path> as <alias>
 wp add .                → bookmark current dir (shorthand, same as bare `wp add`)
 wp rm <alias>           → delete a bookmark
-wp ls                   → list all bookmarks
+wp ls, wp list           → list all bookmarks
 wp set [alias|path]     → set default (clipboard → cwd → temp slot)
 wp default <alias>      → set the default bookmark
 wp default .            → point the default at the current directory (temp slot)
@@ -65,12 +65,12 @@ wp -h       → show usage
 
 The parser is greedy on aliases. `wp <anything>` resolves as:
 
-1. If `<anything>` matches a **reserved keyword** (`add`, `rm`, `ls`, `default`, `set`, `config`, `help`, `.`, `-vs`, `-h`) → run the subcommand.
+1. If `<anything>` matches a **reserved keyword** (`add`, `rm`, `ls`, `list`, `default`, `set`, `config`, `help`, `.`, `-vs`, `-h`) → run the subcommand.
 2. Otherwise → treat it as a bookmark alias and navigate to it.
 
 This means `wp dev` goes to the "dev" bookmark. `wp add` runs the add subcommand. No disambiguation needed — reserved words are a small, closed set.
 
-Reserved keywords: `add`, `rm`, `ls`, `default`, `set`, `config`, `help`, `.`, `-vs`, `-h`, `-?`
+Reserved keywords: `add`, `rm`, `ls`, `list`, `default`, `set`, `config`, `help`, `.`, `-vs`, `-h`, `-?`
 
 ### Default bookmark
 

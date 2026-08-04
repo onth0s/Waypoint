@@ -81,7 +81,7 @@ def _add(cmd: Command, console: Console) -> int:
     name = prompt_name(b, explicit_alias, console)
     b.bookmarks[name] = target
     store.save_bookmarks(b)
-    ok(console, f"Saved {name} \u2192 {target}")
+    ok(console, f"Saved {name} -> {target}")
     return EXIT_OK
 
 
@@ -114,7 +114,7 @@ def _rm(cmd: Command, console: Console) -> int:
     store.save_bookmarks(b)
     ok(console, f"Removed {alias}")
     if was_default:
-        warn(console, "default bookmark removed \u2014 run: [bold]wp default <alias>[/bold]")
+        warn(console, "default bookmark removed -- run: [bold]wp default <alias>[/bold]")
     return EXIT_OK
 
 
@@ -140,7 +140,7 @@ def _set_temp_slot(target: str, b: store.Bookmarks, console: Console) -> int:
     b.bookmarks[TEMP_SLOT] = target
     b.default = TEMP_SLOT
     store.save_bookmarks(b)
-    ok(console, f"Default is now {TEMP_SLOT} \u2192 {target}")
+    ok(console, f"Default is now {TEMP_SLOT} -> {target}")
     return EXIT_OK
 
 
@@ -224,7 +224,7 @@ def _open(kind: str, console: Console) -> int:
 
 
 def _help(console: Console) -> int:
-    console.print("[bold]Waypoint[/bold] \u2014 path bookmark CLI")
+    console.print("[bold]Waypoint[/bold] -- path bookmark CLI")
     console.print()
     console.print("[bold]Navigate[/bold]")
     console.print("  wp                  go to default bookmark")
@@ -233,8 +233,8 @@ def _help(console: Console) -> int:
     console.print("[bold]Manage[/bold]")
     console.print("  wp add [alias] [path]   bookmark a directory (prompts for name if omitted)")
     console.print("  wp rm <alias>           delete a bookmark")
-    console.print("  wp ls                   list all bookmarks")
-    console.print("  wp set [alias|path]   set the default (clipboard \u2192 cwd \u2192 temp slot)")
+    console.print("  wp ls, wp list          list all bookmarks")
+    console.print("  wp set [alias|path]   set the default (clipboard -> cwd -> temp slot)")
     console.print("  wp default <alias>      set the default bookmark")
     console.print("  wp default . | <path>   point default at a directory (temp slot)")
     console.print()

@@ -25,6 +25,14 @@ $Block = @"
 $MarkerStart
 function wp {
     `$env:WP_FORCE_COLOR = if ([Environment]::UserInteractive) { "1" } else { "0" }
+    # add prompts for a name via rich Prompt.ask; @() capture would swallow the
+    # prompt (stdout is a pipe), leaving the user typing blind. Run it live.
+    # Any future prompting command must be added to this list.
+    if (`$args.Count -gt 0 -and `$args[0] -eq 'add') {
+        & python "$RepoDir\waypoint\__main__.py" @args
+        Remove-Item Env:WP_FORCE_COLOR -ErrorAction SilentlyContinue
+        return
+    }
     `$lines = @(& python "$RepoDir\waypoint\__main__.py" @args)
     Remove-Item Env:WP_FORCE_COLOR -ErrorAction SilentlyContinue
     if (`$LASTEXITCODE -eq 0 -and `$lines.Count -eq 1 -and `$lines[0]) {

@@ -9,7 +9,7 @@ __all__ = ["RESERVED", "Command", "UsageError", "parse_args", "validate_alias", 
 
 # `config` joins README's reserved list so that `wp config home <path>` (README,
 # Data section) parses instead of being treated as a bookmark named "config".
-RESERVED = {"add", "rm", "ls", "default", "set", "config", "help", ".", "-vs", "-h", "-?"}
+RESERVED = {"add", "rm", "ls", "list", "default", "set", "config", "help", ".", "-vs", "-h", "-?"}
 
 
 class UsageError(Exception):
@@ -35,8 +35,8 @@ def parse_args(argv: list[str]) -> Command:
     if head in (".", "-vs"):
         _require(rest, 0, f"wp {head} takes no arguments")
         return Command(kind="explorer" if head == "." else "code", args=[])
-    if head == "ls":
-        _require(rest, 0, "wp ls takes no arguments")
+    if head in ("ls", "list"):
+        _require(rest, 0, f"wp {head} takes no arguments")
         return Command(kind="ls", args=[])
     if head == "add":
         return _parse_add(rest)

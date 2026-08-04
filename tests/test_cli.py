@@ -87,6 +87,7 @@ def test_wrapper_protocol_invariant(monkeypatch, tmp_path, capsys):
 
     cases = [
         ["ls"],
+        ["list"],
         ["add", "web", str(target)],
         ["default", "dev"],
         ["default", "."],

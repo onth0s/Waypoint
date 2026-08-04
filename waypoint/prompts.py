@@ -18,7 +18,7 @@ def _resolve_collision(name: str, b: store.Bookmarks, console: Console) -> str |
     """Handle 'already exists' prompt. Returns new name, None to re-prompt, or raises _Cancelled."""
     try:
         choice = Prompt.ask(
-            f"Bookmark {name!r} already exists \u2014 override, rename, or cancel?",
+            f"Bookmark {name!r} already exists -- override, rename, or cancel?",
             choices=["override", "rename", "cancel"],
         )
     except (EOFError, KeyboardInterrupt):

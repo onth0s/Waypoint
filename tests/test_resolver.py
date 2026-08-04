@@ -19,6 +19,7 @@ from waypoint.resolver import RESERVED, Command, UsageError, parse_args, validat
         (["add", "dev", r"C:\path"], "add", ["dev", r"C:\path"]),
         (["rm", "dev"], "rm", ["dev"]),
         (["ls"], "ls", []),
+        (["list"], "ls", []),
         (["default", "dev"], "default", ["dev"]),
         (["default", "."], "default", ["."]),
         (["default", r"C:\path"], "default", [r"C:\path"]),
@@ -54,6 +55,7 @@ def test_add_existing_dir_is_path_form(tmp_path):
         ["default", "a", "b"],
         ["set", "a", "b"],
         ["ls", "x"],
+        ["list", "x"],
         ["help", "x"],
         [".", "x"],
         ["-vs", "x"],
@@ -70,7 +72,22 @@ def test_usage_errors(argv):
 
 @pytest.mark.parametrize(
     "name",
-    ["", "my alias", "add", "rm", "ls", "default", "set", "config", "help", ".", "-vs", "-h", "-?"],
+    [
+        "",
+        "my alias",
+        "add",
+        "rm",
+        "ls",
+        "list",
+        "default",
+        "set",
+        "config",
+        "help",
+        ".",
+        "-vs",
+        "-h",
+        "-?",
+    ],
 )
 def test_validate_alias_rejects(name):
     with pytest.raises(UsageError):

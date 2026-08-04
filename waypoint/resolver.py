@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 # `config` joins README's reserved list so that `wp config home <path>` (README,
 # Data section) parses instead of being treated as a bookmark named "config".
-RESERVED = {"add", "rm", "ls", "default", "config", "help", ".", "-vs", "-h", "-?"}
+RESERVED = {"add", "rm", "ls", "default", "set", "config", "help", ".", "-vs", "-h", "-?"}
 
 
 class UsageError(Exception):
@@ -16,7 +16,7 @@ class UsageError(Exception):
 
 @dataclass
 class Command:
-    kind: str  # nav | add | rm | ls | default | config | help | explorer | code
+    kind: str  # nav | add | rm | ls | default | set | config | help | explorer | code
     args: list  # list[str | None]; shape is per-kind, see parse_args
 
 
@@ -44,6 +44,14 @@ def parse_args(argv: list[str]) -> Command:
     if head == "default":
         _require(rest, 1, "usage: wp default <alias|path>")
         return Command(kind="default", args=[rest[0]])
+    if head == "set":
+        if len(rest) > 1:
+            raise UsageError("usage: wp set [alias|path]")
+        if not rest:
+            return Command(kind="set", args=[None])
+        if rest[0] == ".":
+            return Command(kind="set", args=["."])
+        return Command(kind="set", args=[rest[0]])
     # config
     if not rest:
         return Command(kind="config", args=[None])

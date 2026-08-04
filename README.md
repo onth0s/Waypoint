@@ -31,6 +31,7 @@ wp add <alias> <path>   → bookmark <path> as <alias>
 wp add .                → bookmark current dir (shorthand, same as bare `wp add`)
 wp rm <alias>           → delete a bookmark
 wp ls                   → list all bookmarks
+wp set [alias|path]     → set default (clipboard → cwd → temp slot)
 wp default <alias>      → set the default bookmark
 wp default .            → point the default at the current directory (temp slot)
 wp default <path>       → point the default at an arbitrary directory (temp slot)
@@ -64,12 +65,12 @@ wp -h       → show usage
 
 The parser is greedy on aliases. `wp <anything>` resolves as:
 
-1. If `<anything>` matches a **reserved keyword** (`add`, `rm`, `ls`, `default`, `config`, `help`, `.`, `-vs`, `-h`) → run the subcommand.
+1. If `<anything>` matches a **reserved keyword** (`add`, `rm`, `ls`, `default`, `set`, `config`, `help`, `.`, `-vs`, `-h`) → run the subcommand.
 2. Otherwise → treat it as a bookmark alias and navigate to it.
 
 This means `wp dev` goes to the "dev" bookmark. `wp add` runs the add subcommand. No disambiguation needed — reserved words are a small, closed set.
 
-Reserved keywords: `add`, `rm`, `ls`, `default`, `config`, `help`, `.`, `-vs`, `-h`, `-?`
+Reserved keywords: `add`, `rm`, `ls`, `default`, `set`, `config`, `help`, `.`, `-vs`, `-h`, `-?`
 
 ### Default bookmark
 
@@ -92,6 +93,10 @@ default: wp
 ```
 
 `wp` (no args) navigates to the `default` bookmark. The default starts as `wp`, pointing back at the project dir itself. `wp wp` also goes there.
+
+### `wp set`
+
+`wp set` is a clipboard-aware shortcut for setting the default. It checks the clipboard for a valid path (paste from Explorer), falls back to cwd, and writes the result to the `temp` slot — same as `wp default .` but with clipboard magic. `wp set <alias>` and `wp set <path>` also work, mirroring `wp default`.
 
 ### `config.yaml` — tool settings
 

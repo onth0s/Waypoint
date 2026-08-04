@@ -78,6 +78,8 @@ def dispatch(cmd: Command, console: Console) -> int:
         return _ls(console)
     if cmd.kind == "default":
         return _default(cmd, console)
+    if cmd.kind == "set":
+        return _set(cmd, console)
     if cmd.kind == "config":
         return _config(cmd, console)
     if cmd.kind == "help":
@@ -267,6 +269,54 @@ def _default(cmd: Command, console: Console) -> int:
     return 1
 
 
+def _set(cmd: Command, console: Console) -> int:
+    arg = cmd.args[0]
+    b = store.load_bookmarks()
+    # Dot: cwd only, skip clipboard.
+    if arg == ".":
+        target = os.getcwd()
+        target = os.path.abspath(os.path.expanduser(target))
+        if not os.path.isdir(target):
+            console.print(f"[bold red]Error:[/bold red] not a directory: {target}")
+            return 1
+        b.bookmarks["temp"] = target
+        b.default = "temp"
+        store.save_bookmarks(b)
+        console.print(f"[bold green]Default is now[/bold green] temp -> {target}")
+        return 0
+    # No arg: clipboard first, then cwd.
+    if arg is None:
+        target = clipboard_path() or os.getcwd()
+        target = os.path.abspath(os.path.expanduser(target))
+        if not os.path.isdir(target):
+            console.print(f"[bold red]Error:[/bold red] not a directory: {target}")
+            return 1
+        b.bookmarks["temp"] = target
+        b.default = "temp"
+        store.save_bookmarks(b)
+        console.print(f"[bold green]Default is now[/bold green] temp -> {target}")
+        return 0
+    # Alias form: set default to an existing bookmark.
+    if arg in b.bookmarks:
+        b.default = arg
+        store.save_bookmarks(b)
+        console.print(f"[bold green]Default is now[/bold green] {arg}")
+        return 0
+    # Path form: point default at a directory directly.
+    if looks_like_path(arg):
+        target = os.path.abspath(os.path.expanduser(arg))
+        if not os.path.isdir(target):
+            console.print(f"[bold red]Error:[/bold red] not a directory: {target}")
+            return 1
+        b.bookmarks["temp"] = target
+        b.default = "temp"
+        store.save_bookmarks(b)
+        console.print(f"[bold green]Default is now[/bold green] temp -> {target}")
+        return 0
+    console.print(f"[bold red]Error:[/bold red] No bookmark {arg!r}.")
+    return 1
+
+
 # --- settings ---------------------------------------------------------------
 def _config(cmd: Command, console: Console) -> int:
     if cmd.args[0] is None:
@@ -323,6 +373,7 @@ def _help(console: Console) -> int:
     console.print("  wp add [alias] [path]   bookmark a directory (prompts for name if omitted)")
     console.print("  wp rm <alias>           delete a bookmark")
     console.print("  wp ls                   list all bookmarks")
+    console.print("  wp set [alias|path]     set the default (clipboard -> cwd -> temp slot)")
     console.print("  wp default <alias>      set the default bookmark")
     console.print("  wp default . | <path>   point default at a directory (temp slot)")
     console.print()

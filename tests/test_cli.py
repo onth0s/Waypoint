@@ -91,6 +91,9 @@ def test_wrapper_protocol_invariant(monkeypatch, tmp_path, capsys):
         ["default", "dev"],
         ["default", "."],
         ["default", str(target)],
+        ["set"],
+        ["set", str(target)],
+        ["set", "dev"],
         ["config"],
         ["config", "home", str(tmp_path / "home2")],
         ["help"],
@@ -381,6 +384,90 @@ def test_default_alias_keeps_working_after_temp(monkeypatch, tmp_path, capsys):
     assert _run(monkeypatch, tmp_path, ["default", "dev"]) == 0
     capsys.readouterr()
     assert store.load_bookmarks().default == "dev"
+
+
+# --- set ---------------------------------------------------------------------
+
+
+def test_set_clipboard_wins(monkeypatch, tmp_path, capsys):
+    clip = tmp_path / "clip"
+    clip.mkdir()
+    monkeypatch.setattr(cli, "pyperclip", types.SimpleNamespace(paste=lambda: str(clip)))
+    rc = _run(monkeypatch, tmp_path, ["set"])
+    out = capsys.readouterr()
+    assert rc == 0
+    b = store.load_bookmarks()
+    assert b.default == "temp"
+    assert b.bookmarks["temp"] == str(clip)
+
+
+def test_set_cwd_fallback(monkeypatch, tmp_path, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli, "pyperclip", types.SimpleNamespace(paste=lambda: "not a path"))
+    rc = _run(monkeypatch, tmp_path, ["set"])
+    out = capsys.readouterr()
+    assert rc == 0
+    b = store.load_bookmarks()
+    assert b.default == "temp"
+    assert b.bookmarks["temp"] == str(tmp_path)
+
+
+def test_set_clipboard_error_falls_back(monkeypatch, tmp_path, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli, "pyperclip", types.SimpleNamespace(paste=lambda: (_ for _ in ()).throw(RuntimeError("no clipboard"))))
+    rc = _run(monkeypatch, tmp_path, ["set"])
+    out = capsys.readouterr()
+    assert rc == 0
+    b = store.load_bookmarks()
+    assert b.default == "temp"
+    assert b.bookmarks["temp"] == str(tmp_path)
+
+
+def test_set_dot_ignores_clipboard(monkeypatch, tmp_path, capsys):
+    clip = tmp_path / "clip"
+    clip.mkdir()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli, "pyperclip", types.SimpleNamespace(paste=lambda: str(clip)))
+    rc = _run(monkeypatch, tmp_path, ["set", "."])
+    out = capsys.readouterr()
+    assert rc == 0
+    b = store.load_bookmarks()
+    assert b.default == "temp"
+    assert b.bookmarks["temp"] == str(tmp_path)
+
+
+def test_set_alias_form(monkeypatch, tmp_path, capsys):
+    target = _add_dev(monkeypatch, tmp_path)
+    assert _run(monkeypatch, tmp_path, ["add", "dev", str(target)]) == 0
+    capsys.readouterr()
+    rc = _run(monkeypatch, tmp_path, ["set", "dev"])
+    out = capsys.readouterr()
+    assert rc == 0
+    assert store.load_bookmarks().default == "dev"
+
+
+def test_set_path_form(monkeypatch, tmp_path, capsys):
+    target = _add_dev(monkeypatch, tmp_path)
+    rc = _run(monkeypatch, tmp_path, ["set", str(target)])
+    out = capsys.readouterr()
+    assert rc == 0
+    b = store.load_bookmarks()
+    assert b.default == "temp"
+    assert b.bookmarks["temp"] == str(target)
+
+
+def test_set_unknown_alias_errors(monkeypatch, tmp_path, capsys):
+    rc = _run(monkeypatch, tmp_path, ["set", "nope"])
+    out = capsys.readouterr()
+    assert rc == 1
+    assert "No bookmark" in out.out
+
+
+def test_set_missing_path_errors(monkeypatch, tmp_path, capsys):
+    rc = _run(monkeypatch, tmp_path, ["set", str(tmp_path / "missing")])
+    out = capsys.readouterr()
+    assert rc == 1
+    assert "not a directory" in out.out
 
 
 def test_add_clipboard_file_uses_parent(monkeypatch, tmp_path, capsys):

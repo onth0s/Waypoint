@@ -178,10 +178,10 @@ interactive prompts (known, AGENTS.md), so L2 must NOT assert prompt visibility.
 | `wp store <alias|path>` | store bookmarks at alias path or path (54) | waypoint.yaml created/relocated under target directory |
 | `wp config` | show where bookmarks are stored (55) | prints storage location |
 | `wp config home <path>` | store bookmarks at path (56) | waypoint.yaml created/relocated under `<path>` |
-| `wp config home null` | reset, writes literal `home: null` (57, 60) | reset confirmed indirectly: with `WP_HOME` unset, `wp config` reports the project dir (reading the repo config.yaml is black-box-forbidden) |
+| `wp config home null` | reset, writes literal `home: null` (57, 60) | reset confirmed indirectly: with `WP_HOME` unset, `wp config` reports the `~/.waypoint` default |
 | `WP_HOME=A` + config `home: B` | resolution order (131-134) | waypoint.yaml lives in A (env wins) |
 | `WP_HOME` empty + config `home: B` | resolution order (131-134) | waypoint.yaml lives in B (config wins) |
-| `WP_HOME` unset + config `home: null` | resolution order (131-134) | waypoint.yaml lives in project dir default |
+| `WP_HOME` unset + config `home: null` | resolution order (131-134) | waypoint.yaml lives in default `~/.waypoint` |
 
 Precedence probe procedure (the `T\config` fixture does NOT work — the tool reads
 `config.yaml` from the project dir, which is gitignored):
@@ -192,13 +192,11 @@ Precedence probe procedure (the `T\config` fixture does NOT work — the tool re
    repo `config.yaml`), then run the three precedence rows.
 3. Restore with `wp config home null`. Restoration is MANDATORY — these probes
    mutate the real, gitignored `config.yaml`. Verify indirectly via `wp config`
-   with `WP_HOME` unset (must report the project dir). Do not read the file.
+   with `WP_HOME` unset (must report `~/.waypoint`). Do not read the file.
 
 ### Open locations (dispatch-only)
 
-Dispatch is `os.startfile`/ShellExecute on Windows — a PATH shim (e.g. a fake
-`code.cmd` earlier in `$PATH`) is NEVER invoked (verified 2026-08-04), so it cannot
-intercept the shell-open. Do not attempt to mock it. Instead:
+Dispatch uses `subprocess.Popen` with `shutil.which` resolution (`cmd /c` for `.cmd`/`.bat` shims on Windows). Instead:
 
 - Point the default bookmark at a sandbox path **inside `T`** so any GUI window that
   does open is confined to scratch.

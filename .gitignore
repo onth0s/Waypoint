@@ -15,6 +15,9 @@ config.yaml
 waypoint.yaml
 # Local navigation history — created and updated by every wp jump.
 history.yaml
-# Scratch/docs inside misc/ — only the conformance protocol is tracked.
+# Scratch directories
+tmp/
+# Scratch/docs inside misc/ — protocol and plan are tracked.
 misc/*
 !misc/INSPECTOR.md
+!misc/REFACTORING_PLAN.md

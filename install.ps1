@@ -105,7 +105,10 @@ $MarkerEnd
 
 "@
 
-$ProfilePath = "$HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"
+$ProfilePath = if ($PROFILE.CurrentUserAllHosts) { $PROFILE.CurrentUserAllHosts } else { "$PROFILE" }
+if (-not $ProfilePath) {
+    $ProfilePath = "$HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"
+}
 
 if (-not (Test-Path -LiteralPath $ProfilePath)) {
     New-Item -ItemType File -Path $ProfilePath -Force | Out-Null

@@ -93,7 +93,7 @@ Reserved keywords: `add`, `rm`, `ls`, `list`, `default`, `set`, `store`, `config
 
 ## Data
 
-Two YAML files, stored at a configurable path (default: project dir `Waypoint/`). Override with `WP_HOME` env var or `wp config home <path>`.
+Two YAML files (`waypoint.yaml` and `history.yaml`), stored at a configurable path (default: `~/.waypoint`). Override with `WP_HOME` env var or `wp config home <path>` (which writes `config.yaml` in the project dir).
 
 ### `waypoint.yaml` — bookmarks
 
@@ -125,13 +125,13 @@ The origins of directory navigations (both `cd` and `wp` jumps recorded by the P
 ```yaml
 # Where waypoint.yaml lives. Default: same dir as this config.
 # Override here if you want bookmarks on a different drive / cloud-synced folder.
-home: null  # null = project dir (Waypoint/)
+home: null  # null = default (~/.waypoint)
 ```
 
 Resolution order for data path:
 1. `WP_HOME` env var (if set and non-empty)
 2. `config.yaml` → `home` key (if non-null)
-3. Default: project dir (`Waypoint/`) — `Path(__file__).resolve().parent.parent` in `waypoint/store.py`
+3. Default: `~/.waypoint` — `Path.home() / ".waypoint"` in `waypoint/store.py` (`config.yaml` with `home: null` resolves to `~/.waypoint`)
 
 ## Stack
 
@@ -145,33 +145,34 @@ Resolution order for data path:
 
 ```
 Waypoint/
-├── README.md           ← this file (the spec)
-├── AGENTS.md           ← agent instructions
-├── install.ps1         ← PowerShell profile installer
-├── pyproject.toml      ← packaging, deps, tool config
+├── README.md                 ← this file (the spec)
+├── AGENTS.md                 ← agent instructions
+├── install.ps1               ← PowerShell profile installer
+├── pyproject.toml            ← packaging, deps, tool config
 ├── .gitignore
 ├── .gitattributes
-├── config.yaml         ← tool settings (home path, etc.; not tracked)
-├── waypoint.yaml       ← bookmarks + default (created & seeded on first use; not tracked)
-├── history.yaml        ← navigation history (created & updated by every wp jump; not tracked)
-├── misc/INSPECTOR.md       ← black-box conformance protocol against this README
+├── config.yaml               ← tool settings (home path, etc.; not tracked)
+├── waypoint.yaml             ← bookmarks + default (created & seeded on first use; not tracked)
+├── history.yaml              ← navigation history (created & updated by every wp jump; not tracked)
+├── misc/INSPECTOR.md         ← black-box conformance protocol against this README
+├── misc/REFACTORING_PLAN.md  ← codebase audit & sequential refactoring plan
 ├── waypoint/
 │   ├── __init__.py
-│   ├── __main__.py     ← entry point (thin: imports and calls main)
-│   ├── cli.py          ← dispatch + main()
-│   ├── clipboard.py    ← clipboard helper utilities
-│   ├── commands/       ← command handler package
+│   ├── __main__.py           ← entry point (thin: imports and calls main)
+│   ├── cli.py                ← dispatch + main()
+│   ├── clipboard.py          ← clipboard helper utilities
+│   ├── commands/             ← command handler package
 │   │   ├── __init__.py
-│   │   ├── nav.py      ← navigation handlers (_nav, _record_origin)
-│   │   ├── history.py  ← history & undo handlers (_undo, _history)
-│   │   ├── bookmarks.py← bookmark management (_add, _rm, _ls, _default, _set)
-│   │   ├── config.py   ← configuration handler (_config)
-│   │   └── launcher.py ← external app launcher & help (_open, _help)
-│   ├── prompts.py      ← interactive prompting
-│   ├── constants.py    ← shared constants (exit codes, temp slot, history caps)
-│   ├── output.py       ← rich output helpers
-│   ├── store.py        ← read/write waypoint.yaml + history.yaml + config.yaml
-│   └── resolver.py     ← argv parsing + reserved keyword detection
+│   │   ├── nav.py            ← navigation handlers (_nav, _record_origin)
+│   │   ├── history.py        ← history & undo handlers (_undo, _history)
+│   │   ├── bookmarks.py      ← bookmark management (_add, _rm, _ls, _default, _set)
+│   │   ├── config.py         ← configuration handler (_config)
+│   │   └── launcher.py       ← external app launcher & help (_open, _help)
+│   ├── prompts.py            ← interactive prompting
+│   ├── constants.py          ← shared constants (exit codes, temp slot, history caps)
+│   ├── output.py             ← rich output helpers
+│   ├── store.py              ← read/write waypoint.yaml + history.yaml + config.yaml
+│   └── resolver.py           ← argv parsing + reserved keyword detection
 └── tests/
     ├── conftest.py               ← shared fixtures
     ├── test_store.py             ← read/write round-trips, resolution order
@@ -180,7 +181,9 @@ Waypoint/
     ├── test_nav_commands.py      ← navigation command unit tests
     ├── test_bookmark_commands.py ← bookmark management command unit tests
     ├── test_constants.py         ← constant integrity checks
-    └── test_output.py            ← output helper tests
+    ├── test_output.py            ← output helper tests
+    ├── test_wrapper_contract.py  ← wrapper coupling & interactive command contract tests
+    └── test_commands_exports.py  ← package export hygiene tests
 ```
 
 ## Notes
@@ -191,3 +194,5 @@ Waypoint/
 - Navigation prints the resolved absolute path as the *only* stdout line; `wp` then `Set-Location`s there. Every other command prints rich-formatted output (AGENTS.md), which the wrapper re-emits — a bare existing path on stdout is the one thing that triggers a `cd`, so `wp ls` or an error can never move you.
 - Colors: the wrapper sets `WP_FORCE_COLOR=1` for interactive sessions (stdout is a pipe to PowerShell, which would otherwise make rich drop color), and removes it afterwards. Plain `python waypoint/__main__.py` runs without forced color.
 - `install.ps1` needs `python` on PATH; it runs `pip install -e ".[dev]"` if the import probe fails.
+- `PROJECT_DIR` in `store.py` locates `config.yaml` relative to the installed package path (`Path(__file__).resolve().parent.parent`). Waypoint requires installation in editable mode (`pip install -e .`).
+

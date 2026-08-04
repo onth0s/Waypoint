@@ -37,7 +37,8 @@ def _config(cmd: Command, console: Console) -> int:
 def _store(cmd: Command, console: Console) -> int:
     """Handle `wp store` / `wp store <alias|path>`."""
     if cmd.args[0] is None:
-        console.print(f"store: {store.data_dir()}", soft_wrap=True)
+        console.print(f"[bold]bookmarks:[/bold] {store.bookmarks_path()}", soft_wrap=True)
+        console.print(f"[bold]history:[/bold]   {store.history_path()}", soft_wrap=True)
         return EXIT_OK
     arg = cmd.args[0]
     assert arg is not None

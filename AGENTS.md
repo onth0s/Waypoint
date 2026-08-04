@@ -2,6 +2,10 @@
 
 Use `rich` to color all output that will be read by an end user.
 
+## Git Branching
+
+- **NEVER work directly on `master`.** All agent changes, features, refactorings, and fixes MUST be made and committed on the `dev` branch. Never commit or push to `master`.
+
 ## Fuckups
 
 - Unicode in rich output crashes. The `wp` wrapper captures stdout through a pipe,

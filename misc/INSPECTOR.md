@@ -178,10 +178,10 @@ interactive prompts (known, AGENTS.md), so L2 must NOT assert prompt visibility.
 | `wp store <alias|path>` | store bookmarks at alias path or path (54) | waypoint.yaml created/relocated under target directory |
 | `wp config` | show where bookmarks are stored (55) | prints storage location |
 | `wp config home <path>` | store bookmarks at path (56) | waypoint.yaml created/relocated under `<path>` |
-| `wp config home null` | reset, writes literal `home: null` (57) | reset confirmed indirectly: with `WP_HOME` unset, `wp config` reports the project dir (reading the repo config.yaml is black-box-forbidden) |
-| `WP_HOME=A` + config `home: B` | resolution order (109-112) | waypoint.yaml lives in A (env wins) |
-| `WP_HOME` empty + config `home: B` | resolution order (109-112) | waypoint.yaml lives in B (config wins) |
-| `WP_HOME` unset + config `home: null` | resolution order (109-112) | waypoint.yaml lives in project dir default |
+| `wp config home null` | reset, writes literal `home: null` (57, 60) | reset confirmed indirectly: with `WP_HOME` unset, `wp config` reports the project dir (reading the repo config.yaml is black-box-forbidden) |
+| `WP_HOME=A` + config `home: B` | resolution order (131-134) | waypoint.yaml lives in A (env wins) |
+| `WP_HOME` empty + config `home: B` | resolution order (131-134) | waypoint.yaml lives in B (config wins) |
+| `WP_HOME` unset + config `home: null` | resolution order (131-134) | waypoint.yaml lives in project dir default |
 
 Precedence probe procedure (the `T\config` fixture does NOT work — the tool reads
 `config.yaml` from the project dir, which is gitignored):
@@ -209,18 +209,18 @@ intercept the shell-open. Do not attempt to mock it. Instead:
 
 | Probe | README claim (line ref) | Expected (per README) |
 |---|---|---|
-| `wp .` | open bookmarked dir in Explorer (53) | exit 0; stdout = `Opening <path> in Explorer`; `<path>` == resolved bookmark path |
-| `wp -vs` | open bookmarked dir in VS Code (54) | exit 0; stdout = `Opening <path> in VS Code`; `<path>` == resolved bookmark path |
+| `wp .` | open bookmarked dir in Explorer (65) | exit 0; stdout = `Opening <path> in Explorer`; `<path>` == resolved bookmark path |
+| `wp -vs` | open bookmarked dir in VS Code (66) | exit 0; stdout = `Opening <path> in VS Code`; `<path>` == resolved bookmark path |
 
 ### Help & reserved keywords
 
 | Probe | README claim (line ref) | Expected (per README) |
 |---|---|---|
-| `wp help` | show usage (60) | usage on stdout, exit 0 |
-| `wp -h` | show usage (61) | usage on stdout, exit 0 |
-| `wp -?` | listed in reserved set (73), absent from greedy list (68) and help section (60-61) | **dissonance probe:** does the command exist at all? record both ways |
-| reserved-collision: `wp add add <path>` then `wp add` | reserved words beat aliases (66-71) | reserved names are REJECTED as bookmark names (`Error: '<alias>' is a reserved word and can't be a bookmark name`, exit 2 — stronger than the README guarantee); then `wp add` still runs the subcommand, never navigates |
-| reserved-set sweep: each token in line 85 (`add`, `rm`, `ls`, `default`, `set`, `store`, `config`, `help`, `undo`, `u`, `history`, `h`, `.`, `-vs`, `-h`, `-?`) | closed set of keywords (80, 85) | each behaves as a keyword, none navigates as an alias |
+| `wp help` | show usage (72) | usage on stdout, exit 0 |
+| `wp -h` | show usage (73) | usage on stdout, exit 0 |
+| `wp -?` | listed in reserved set (86), absent from greedy list (81) and help section (72-74) | **dissonance probe:** does the command exist at all? record both ways |
+| reserved-collision: `wp add add <path>` then `wp add` | reserved words beat aliases (79-86) | reserved names are REJECTED as bookmark names (`Error: '<alias>' is a reserved word and can't be a bookmark name`, exit 2 — stronger than the README guarantee); then `wp add` still runs the subcommand, never navigates |
+| reserved-set sweep: each token in line 86 (`add`, `rm`, `ls`, `default`, `set`, `store`, `config`, `help`, `undo`, `u`, `history`, `h`, `.`, `-vs`, `-h`, `-?`) | closed set of keywords (81, 86) | each behaves as a keyword, none navigates as an alias |
 
 ## 5. Contracts asserted per probe
 

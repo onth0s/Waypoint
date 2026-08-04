@@ -142,3 +142,18 @@ def test_history_non_list_raises(monkeypatch, tmp_path):
     (data / "history.yaml").write_text("not-a-list\n", encoding="utf-8")
     with pytest.raises(store.StoreError):
         store.load_history()
+
+
+def test_non_string_config_home_raises(monkeypatch, tmp_path):
+    monkeypatch.setattr(store, "PROJECT_DIR", tmp_path)
+    (tmp_path / "config.yaml").write_text("home: 123\n", encoding="utf-8")
+    with pytest.raises(store.StoreError):
+        store.load_config()
+
+
+def test_atomic_write_creates_nested_parent_dirs(tmp_path):
+    target = tmp_path / "nested" / "dir" / "test.txt"
+    store._atomic_write(target, "content")
+    assert target.is_file()
+    assert target.read_text(encoding="utf-8") == "content"
+

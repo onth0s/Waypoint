@@ -1,4 +1,6 @@
-"""Read/write the two YAML data files: config.yaml (settings) and waypoint.yaml (bookmarks)."""
+"""Read/write the three YAML data files: config.yaml (settings), waypoint.yaml
+(bookmarks), and history.yaml (navigation history).
+"""
 
 from __future__ import annotations
 
@@ -49,9 +51,9 @@ class Bookmarks:
 
 
 def data_dir() -> Path:
-    """Where waypoint.yaml lives.
+    """Where waypoint.yaml and history.yaml live.
 
-    Resolution order: WP_HOME -> config home -> ~/.waypoint -> project dir.
+    Resolution order: WP_HOME -> config home -> ~/.waypoint.
     """
     env = os.environ.get("WP_HOME")
     if env and env.strip():
@@ -83,7 +85,10 @@ def load_config() -> dict[str, str | None]:
         data = {}
     if not isinstance(data, dict):
         raise StoreError("config.yaml is not valid YAML")
-    return {"home": data.get("home")}
+    home = data.get("home")
+    if home is not None and not isinstance(home, str):
+        raise StoreError("config.yaml `home` must be a path string or null")
+    return {"home": home}
 
 
 def save_config_home(path: str | None) -> None:
@@ -103,6 +108,7 @@ def save_config_home(path: str | None) -> None:
         f"home: {home}\n"
     )
     _atomic_write(PROJECT_DIR / "config.yaml", payload)
+
 
 def load_bookmarks() -> Bookmarks:
     """Read waypoint.yaml, creating and seeding it on first use."""
@@ -134,7 +140,6 @@ def load_bookmarks() -> Bookmarks:
 def save_bookmarks(b: Bookmarks) -> None:
     """Write waypoint.yaml atomically (tmp file + replace, so a crash can't truncate it)."""
     path = bookmarks_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
     payload = yaml.safe_dump(
         {"bookmarks": b.bookmarks, "default": b.default}, sort_keys=False
     )
@@ -142,8 +147,12 @@ def save_bookmarks(b: Bookmarks) -> None:
 
 
 def _atomic_write(path: Path, payload: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(payload, encoding="utf-8")
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(payload)
+        f.flush()
+        os.fsync(f.fileno())
     os.replace(tmp, path)
 
 
@@ -166,7 +175,6 @@ def load_history() -> list[str]:
 def save_history(entries: list[str]) -> None:
     """Write the navigation-origin stack, keeping only the newest UNDO_STACK."""
     path = history_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
     kept = entries[-UNDO_STACK:]
     payload = yaml.safe_dump(kept, default_flow_style=False)
     _atomic_write(path, payload)

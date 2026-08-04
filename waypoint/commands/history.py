@@ -12,7 +12,17 @@ from waypoint.constants import EXIT_ERROR, EXIT_OK, HISTORY_PREVIEW
 from waypoint.output import err, hint
 from waypoint.resolver import Command
 
-__all__ = ["_undo", "_history"]
+__all__ = ["_undo", "_history", "_record_history_entry"]
+
+
+def _record_history_entry(cmd: Command) -> int:
+    """Record an origin path directly into history.yaml."""
+    origin = cmd.args[0]
+    if origin and os.path.isdir(origin):
+        entries = store.load_history()
+        if not entries or entries[-1] != origin:
+            store.save_history(entries + [origin])
+    return EXIT_OK
 
 
 def _undo(cmd: Command, console: Console) -> int:

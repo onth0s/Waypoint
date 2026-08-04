@@ -10,7 +10,7 @@ import pyperclip
 from waypoint import clipboard
 from waypoint.commands.bookmarks import _add, _default, _ls, _rm, _set, _set_temp_slot
 from waypoint.commands.config import _config, _store
-from waypoint.commands.history import _history, _undo
+from waypoint.commands.history import _history, _record_history_entry, _undo
 from waypoint.commands.launcher import _help, _open
 from waypoint.commands.nav import _default_target, _nav, _record_origin, _require_dir
 
@@ -24,6 +24,8 @@ __all__ = [
     "_ls",
     "_nav",
     "_open",
+    "_record_history",
+    "_record_history_entry",
     "_record_origin",
     "_require_dir",
     "_rm",

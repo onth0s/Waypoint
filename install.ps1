@@ -51,6 +51,7 @@ function Set-WaypointLocation {
     }
     `$current = (Get-Location).Path
     if (`$current -ne `$before) {
+        & python "$RepoDir\waypoint\__main__.py" _record_history `$before > `$null 2>&1
         if (`$global:WpHistory.Count -eq 0 -or `$global:WpHistory[`$global:WpHistory.Count - 1] -ne `$before) {
             `$global:WpHistory.Add(`$before)
         }

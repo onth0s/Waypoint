@@ -26,6 +26,7 @@ from waypoint.commands import (
     _ls,
     _nav,
     _open,
+    _record_history_entry,
     _rm,
     _set,
     _store,
@@ -76,6 +77,8 @@ def main(argv: list[str] | None = None) -> int:
 
 def dispatch(cmd: Command, console: Console) -> int:
     """Route a parsed command to its handler."""
+    if cmd.kind == "record_history":
+        return _record_history_entry(cmd)
     if cmd.kind == "nav":
         return _nav(cmd, console)
     if cmd.kind == "undo":

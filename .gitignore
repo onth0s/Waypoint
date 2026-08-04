@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+dist/
+build/
+# Local bookmarks file — created and seeded on first use; machine-specific.
+waypoint.yaml

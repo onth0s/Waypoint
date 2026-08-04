@@ -2,6 +2,10 @@
 
 Use `rich` to color all output that will be read by an end user.
 
+## File Access & Workspace Isolation
+
+- **NEVER create, modify, write to, or delete any file outside the project repository directory.** All temporary files, test stores, scratch files, and refactoring scripts MUST remain strictly contained within the project directory or virtual test fixtures (`tmp_path`). Never mutate user home files (`~`), system user profiles, or external data files directly.
+
 ## Git Branching
 
 - **NEVER work directly on `master`.** All agent changes, features, refactorings, and fixes MUST be made and committed on the `dev` branch. Never commit or push to `master`.

@@ -72,10 +72,10 @@ function cdh {
 
 function wp {
     `$env:WP_FORCE_COLOR = if ([Environment]::UserInteractive) { "1" } else { "0" }
-    # add prompts for a name via rich Prompt.ask; @() capture would swallow the
-    # prompt (stdout is a pipe), leaving the user typing blind. Run it live.
-    # Any future prompting command must be added to this list.
-    if (`$args.Count -gt 0 -and `$args[0] -eq 'add') {
+    # Commands that perform interactive rich prompts (Prompt.ask). Capturing stdout via @()
+    # would buffer stdout on the pipe, causing invisible prompts. Run live.
+    `$interactiveCmds = @('add')
+    if (`$args.Count -gt 0 -and `$interactiveCmds -contains `$args[0]) {
         & python "$RepoDir\waypoint\__main__.py" @args
         Remove-Item Env:WP_FORCE_COLOR -ErrorAction SilentlyContinue
         return

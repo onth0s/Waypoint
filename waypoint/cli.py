@@ -28,6 +28,7 @@ from waypoint.commands import (
     _open,
     _rm,
     _set,
+    _store,
     _undo,
 )
 from waypoint.constants import EXIT_ERROR, EXIT_USAGE
@@ -93,6 +94,8 @@ def dispatch(cmd: Command, console: Console) -> int:
         return _set(cmd, console)
     if cmd.kind == "config":
         return _config(cmd, console)
+    if cmd.kind == "store":
+        return _store(cmd, console)
     if cmd.kind == "help":
         return _help(console)
     if cmd.kind in ("explorer", "code"):

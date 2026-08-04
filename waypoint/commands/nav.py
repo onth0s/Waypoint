@@ -1,0 +1,69 @@
+"""Navigation command handlers."""
+
+from __future__ import annotations
+
+import os
+import sys
+
+from rich.console import Console
+
+from waypoint import store
+from waypoint.constants import EXIT_ERROR, EXIT_OK
+from waypoint.output import err, hint
+from waypoint.resolver import Command
+
+__all__ = ["_nav", "_default_target", "_require_dir", "_record_origin"]
+
+
+def _record_origin(target: str) -> None:
+    """Push the pre-jump cwd onto the undo stack (skip no-move / duplicates)."""
+    origin = os.getcwd()
+    if origin == target:
+        return
+    entries = store.load_history()
+    if entries and entries[-1] == origin:
+        return
+    store.save_history(entries + [origin])
+
+
+def _nav(cmd: Command, console: Console) -> int:
+    b = store.load_bookmarks()
+    if cmd.args:
+        alias = cmd.args[0]
+        assert alias is not None  # parse_args always fills nav args with a str
+        target = b.bookmarks.get(alias)
+        if target is None:
+            err(console, f"No bookmark {alias!r}.")
+            hint(console, "Run [bold]wp ls[/bold] to see bookmarks.")
+            return EXIT_ERROR
+        if not _require_dir(target, alias, console):
+            return EXIT_ERROR
+    else:
+        target = _default_target(b, console)
+        if target is None:
+            return EXIT_ERROR
+        assert b.default is not None  # _default_target only returns a target when one exists
+        if not _require_dir(target, b.default, console):
+            return EXIT_ERROR
+    _record_origin(target)
+    sys.stdout.write(target + "\n")
+    return EXIT_OK
+
+
+def _default_target(b: store.Bookmarks, console: Console) -> str | None:
+    """Resolve the default bookmark's path; print an error and return None on failure."""
+    if b.default is None:
+        err(console, "No default bookmark. Set one with: [bold]wp default <alias>[/bold]")
+        return None
+    target = b.bookmarks.get(b.default)
+    if target is None:
+        err(console, f"Default bookmark {b.default!r} no longer exists.")
+        return None
+    return target
+
+
+def _require_dir(target: str, label: str, console: Console) -> bool:
+    if not os.path.isdir(target):
+        err(console, f"Bookmark {label!r} points to a path that doesn't exist: {target}")
+        return False
+    return True

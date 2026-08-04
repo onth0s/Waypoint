@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 
 __all__ = ["RESERVED", "Command", "UsageError", "parse_args", "validate_alias", "looks_like_path"]
@@ -16,6 +15,7 @@ RESERVED = {
     "list",
     "default",
     "set",
+    "store",
     "config",
     "help",
     "undo",
@@ -75,6 +75,12 @@ def parse_args(argv: list[str]) -> Command:
         if rest[0] == ".":
             return Command(kind="set", args=["."])
         return Command(kind="set", args=[rest[0]])
+    if head == "store":
+        if not rest:
+            return Command(kind="store", args=[None])
+        if len(rest) == 1:
+            return Command(kind="store", args=[rest[0]])
+        raise UsageError("usage: wp store [alias|path]")
     # config
     if not rest:
         return Command(kind="config", args=[None])
@@ -128,8 +134,8 @@ def _parse_add(rest: list[str]) -> Command:
 
 
 def looks_like_path(arg: str) -> bool:
-    """Single-arg `wp add C:/x` means "bookmark this path", not "alias named C:/x"."""
-    return any(sep in arg for sep in ("\\", "/")) or os.path.isdir(arg)
+    """Single-arg `wp add C:/x` means 'bookmark this path', not 'alias named C:/x'."""
+    return any(sep in arg for sep in ("\\", "/"))
 
 
 def _require(rest: list[str], count: int, message: str) -> None:

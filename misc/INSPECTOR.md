@@ -174,9 +174,11 @@ interactive prompts (known, AGENTS.md), so L2 must NOT assert prompt visibility.
 
 | Probe | README claim (line ref) | Expected (per README) |
 |---|---|---|
-| `wp config` | show where bookmarks are stored (43) | prints storage location |
-| `wp config home <path>` | store bookmarks at path (44) | waypoint.yaml created/relocated under `<path>` |
-| `wp config home null` | reset, writes literal `home: null` (45, 48) | reset confirmed indirectly: with `WP_HOME` unset, `wp config` reports the project dir (reading the repo config.yaml is black-box-forbidden) |
+| `wp store` | show where bookmarks are stored (53) | prints storage location |
+| `wp store <alias|path>` | store bookmarks at alias path or path (54) | waypoint.yaml created/relocated under target directory |
+| `wp config` | show where bookmarks are stored (55) | prints storage location |
+| `wp config home <path>` | store bookmarks at path (56) | waypoint.yaml created/relocated under `<path>` |
+| `wp config home null` | reset, writes literal `home: null` (57) | reset confirmed indirectly: with `WP_HOME` unset, `wp config` reports the project dir (reading the repo config.yaml is black-box-forbidden) |
 | `WP_HOME=A` + config `home: B` | resolution order (109-112) | waypoint.yaml lives in A (env wins) |
 | `WP_HOME` empty + config `home: B` | resolution order (109-112) | waypoint.yaml lives in B (config wins) |
 | `WP_HOME` unset + config `home: null` | resolution order (109-112) | waypoint.yaml lives in project dir default |
@@ -218,7 +220,7 @@ intercept the shell-open. Do not attempt to mock it. Instead:
 | `wp -h` | show usage (61) | usage on stdout, exit 0 |
 | `wp -?` | listed in reserved set (73), absent from greedy list (68) and help section (60-61) | **dissonance probe:** does the command exist at all? record both ways |
 | reserved-collision: `wp add add <path>` then `wp add` | reserved words beat aliases (66-71) | reserved names are REJECTED as bookmark names (`Error: '<alias>' is a reserved word and can't be a bookmark name`, exit 2 — stronger than the README guarantee); then `wp add` still runs the subcommand, never navigates |
-| reserved-set sweep: each token in line 73 (`add`, `rm`, `ls`, `default`, `set`, `config`, `help`, `undo`, `u`, `history`, `h`, `.`, `-vs`, `-h`, `-?`) | closed set of keywords (71, 73) | each behaves as a keyword, none navigates as an alias |
+| reserved-set sweep: each token in line 85 (`add`, `rm`, `ls`, `default`, `set`, `store`, `config`, `help`, `undo`, `u`, `history`, `h`, `.`, `-vs`, `-h`, `-?`) | closed set of keywords (80, 85) | each behaves as a keyword, none navigates as an alias |
 
 ## 5. Contracts asserted per probe
 

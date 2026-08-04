@@ -34,3 +34,7 @@ files = ["waypoint"]
 # pyperclip ships without type stubs and has no types-* package on PyPI.
 module = "pyperclip"
 ignore_missing_imports = true
+
+[tool.setuptools.packages.find]
+include = ["waypoint*"]
+

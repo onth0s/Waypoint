@@ -8,7 +8,7 @@ import os
 import subprocess
 import types
 
-from waypoint import cli, commands, store
+from waypoint import cli, clipboard, store
 
 
 def _run(monkeypatch, tmp_path, argv):
@@ -172,7 +172,7 @@ def test_add_path_like_single_arg_is_path_form(monkeypatch, tmp_path, capsys):
 def test_add_clipboard_wins_over_cwd(monkeypatch, tmp_path, capsys):
     clip = tmp_path / "clip"
     clip.mkdir()
-    monkeypatch.setattr(commands, "pyperclip", types.SimpleNamespace(paste=lambda: str(clip)))
+    monkeypatch.setattr(clipboard, "pyperclip", types.SimpleNamespace(paste=lambda: str(clip)))
     monkeypatch.setattr("builtins.input", lambda *a, **k: "clip")
     rc = _run(monkeypatch, tmp_path, ["add"])
     capsys.readouterr()
@@ -182,7 +182,7 @@ def test_add_clipboard_wins_over_cwd(monkeypatch, tmp_path, capsys):
 
 def test_add_clipboard_invalid_falls_back_to_cwd(monkeypatch, tmp_path, capsys):
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(commands, "pyperclip", types.SimpleNamespace(paste=lambda: "not a path"))
+    monkeypatch.setattr(clipboard, "pyperclip", types.SimpleNamespace(paste=lambda: "not a path"))
     monkeypatch.setattr("builtins.input", lambda *a, **k: "cwd")
     rc = _run(monkeypatch, tmp_path, ["add"])
     capsys.readouterr()
@@ -196,7 +196,7 @@ def test_add_clipboard_error_falls_back_to_cwd(monkeypatch, tmp_path, capsys):
     def boom():
         raise RuntimeError("no clipboard available")
 
-    monkeypatch.setattr(commands, "pyperclip", types.SimpleNamespace(paste=boom))
+    monkeypatch.setattr(clipboard, "pyperclip", types.SimpleNamespace(paste=boom))
     monkeypatch.setattr("builtins.input", lambda *a, **k: "cwd")
     rc = _run(monkeypatch, tmp_path, ["add"])
     capsys.readouterr()
@@ -648,7 +648,7 @@ def test_default_alias_keeps_working_after_temp(monkeypatch, tmp_path, capsys):
 def test_set_clipboard_wins(monkeypatch, tmp_path, capsys):
     clip = tmp_path / "clip"
     clip.mkdir()
-    monkeypatch.setattr(commands, "pyperclip", types.SimpleNamespace(paste=lambda: str(clip)))
+    monkeypatch.setattr(clipboard, "pyperclip", types.SimpleNamespace(paste=lambda: str(clip)))
     rc = _run(monkeypatch, tmp_path, ["set"])
     capsys.readouterr()
     assert rc == 0
@@ -659,7 +659,7 @@ def test_set_clipboard_wins(monkeypatch, tmp_path, capsys):
 
 def test_set_cwd_fallback(monkeypatch, tmp_path, capsys):
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(commands, "pyperclip", types.SimpleNamespace(paste=lambda: "not a path"))
+    monkeypatch.setattr(clipboard, "pyperclip", types.SimpleNamespace(paste=lambda: "not a path"))
     rc = _run(monkeypatch, tmp_path, ["set"])
     capsys.readouterr()
     assert rc == 0
@@ -674,7 +674,7 @@ def test_set_clipboard_error_falls_back(monkeypatch, tmp_path, capsys):
     def boom():
         raise RuntimeError("no clipboard")
 
-    monkeypatch.setattr(commands, "pyperclip", types.SimpleNamespace(paste=boom))
+    monkeypatch.setattr(clipboard, "pyperclip", types.SimpleNamespace(paste=boom))
     rc = _run(monkeypatch, tmp_path, ["set"])
     capsys.readouterr()
     assert rc == 0
@@ -687,7 +687,7 @@ def test_set_dot_ignores_clipboard(monkeypatch, tmp_path, capsys):
     clip = tmp_path / "clip"
     clip.mkdir()
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(commands, "pyperclip", types.SimpleNamespace(paste=lambda: str(clip)))
+    monkeypatch.setattr(clipboard, "pyperclip", types.SimpleNamespace(paste=lambda: str(clip)))
     rc = _run(monkeypatch, tmp_path, ["set", "."])
     capsys.readouterr()
     assert rc == 0
@@ -733,7 +733,7 @@ def test_set_missing_path_errors(monkeypatch, tmp_path, capsys):
 def test_add_clipboard_file_uses_parent(monkeypatch, tmp_path, capsys):
     f = tmp_path / "notes.txt"
     f.write_text("x", encoding="utf-8")
-    monkeypatch.setattr(commands, "pyperclip", types.SimpleNamespace(paste=lambda: str(f)))
+    monkeypatch.setattr(clipboard, "pyperclip", types.SimpleNamespace(paste=lambda: str(f)))
     monkeypatch.setattr("builtins.input", lambda *a, **k: "docs")
     rc = _run(monkeypatch, tmp_path, ["add"])
     capsys.readouterr()

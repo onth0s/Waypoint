@@ -50,12 +50,14 @@ wp default <path>       → point the default at an arbitrary directory (temp sl
 ### Configure
 
 ```
-wp config               → show where bookmarks are stored
-wp config home <path>   → store bookmarks at <path>
-wp config home null     → reset to the default location
+wp store                 → show where bookmarks are stored
+wp store <alias|path>    → store bookmarks at <alias> target or <path>
+wp config                → show where bookmarks are stored
+wp config home <path>    → store bookmarks at <path>
+wp config home null      → reset to the default location
 ```
 
-`null` is a literal sentinel: it writes `home: null` back into `config.yaml`, which is the documented default ("same dir as this config").
+`null` is a literal sentinel: it writes `home: null` back into `config.yaml`, which is the documented default ("same dir as this config"). `wp store ~` sets the bookmark storage directory directly to your home directory (`~`).
 
 ### Open locations
 
@@ -76,12 +78,12 @@ wp -?       → show usage
 
 The parser is greedy on aliases. `wp <anything>` resolves as:
 
-1. If `<anything>` matches a **reserved keyword** (`add`, `rm`, `ls`, `list`, `default`, `set`, `config`, `help`, `undo`, `u`, `history`, `h`, `.`, `-vs`, `-h`, `-?`) → run the subcommand.
+1. If `<anything>` matches a **reserved keyword** (`add`, `rm`, `ls`, `list`, `default`, `set`, `store`, `config`, `help`, `undo`, `u`, `history`, `h`, `.`, `-vs`, `-h`, `-?`) → run the subcommand.
 2. Otherwise → treat it as a bookmark alias and navigate to it.
 
 This means `wp dev` goes to the "dev" bookmark. `wp add` runs the add subcommand. No disambiguation needed — reserved words are a small, closed set.
 
-Reserved keywords: `add`, `rm`, `ls`, `list`, `default`, `set`, `config`, `help`, `undo`, `u`, `history`, `h`, `.`, `-vs`, `-h`, `-?`
+Reserved keywords: `add`, `rm`, `ls`, `list`, `default`, `set`, `store`, `config`, `help`, `undo`, `u`, `history`, `h`, `.`, `-vs`, `-h`, `-?`
 
 ### Default bookmark
 
@@ -157,19 +159,28 @@ Waypoint/
 │   ├── __init__.py
 │   ├── __main__.py     ← entry point (thin: imports and calls main)
 │   ├── cli.py          ← dispatch + main()
-│   ├── commands.py     ← all command handlers
+│   ├── clipboard.py    ← clipboard helper utilities
+│   ├── commands/       ← command handler package
+│   │   ├── __init__.py
+│   │   ├── nav.py      ← navigation handlers (_nav, _record_origin)
+│   │   ├── history.py  ← history & undo handlers (_undo, _history)
+│   │   ├── bookmarks.py← bookmark management (_add, _rm, _ls, _default, _set)
+│   │   ├── config.py   ← configuration handler (_config)
+│   │   └── launcher.py ← external app launcher & help (_open, _help)
 │   ├── prompts.py      ← interactive prompting
 │   ├── constants.py    ← shared constants (exit codes, temp slot, history caps)
 │   ├── output.py       ← rich output helpers
 │   ├── store.py        ← read/write waypoint.yaml + history.yaml + config.yaml
 │   └── resolver.py     ← argv parsing + reserved keyword detection
 └── tests/
-    ├── conftest.py       ← shared fixtures
-    ├── test_store.py     ← read/write round-trips, resolution order
-    ├── test_resolver.py  ← parsing, reserved keywords, alias validation
-    ├── test_cli.py       ← dispatch, exit codes, wrapper protocol
-    ├── test_constants.py ← constant integrity checks
-    └── test_output.py    ← output helper tests
+    ├── conftest.py               ← shared fixtures
+    ├── test_store.py             ← read/write round-trips, resolution order
+    ├── test_resolver.py          ← parsing, reserved keywords, alias validation
+    ├── test_cli.py               ← dispatch, exit codes, wrapper protocol
+    ├── test_nav_commands.py      ← navigation command unit tests
+    ├── test_bookmark_commands.py ← bookmark management command unit tests
+    ├── test_constants.py         ← constant integrity checks
+    └── test_output.py            ← output helper tests
 ```
 
 ## Notes

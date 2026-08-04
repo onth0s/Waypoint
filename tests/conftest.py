@@ -18,6 +18,15 @@ def pytest_sessionstart(session):
         pytest.exit("ruff check failed", returncode=result.returncode)
 
 
+@pytest.fixture(autouse=True)
+def isolate_project_dir_and_env(monkeypatch, tmp_path):
+    """Automatically isolate PROJECT_DIR and WP_HOME for every test session."""
+    data_dir = tmp_path / "test_data"
+    data_dir.mkdir(exist_ok=True)
+    monkeypatch.setattr(store, "PROJECT_DIR", tmp_path)
+    monkeypatch.setenv("WP_HOME", str(data_dir))
+
+
 @pytest.fixture()
 def isolated_store(monkeypatch, tmp_path):
     """Isolate store to a temp directory for the test."""

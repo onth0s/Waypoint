@@ -60,7 +60,7 @@ def test_resolution_order(monkeypatch, tmp_path):
     (project / "config.yaml").write_text(
         yaml.safe_dump({"home": None}), encoding="utf-8"
     )
-    assert store.data_dir() == project  # project dir fallback
+    assert store.data_dir() == Path.home() / ".waypoint"  # default store fallback
 
 
 def test_corrupt_waypoint_raises(monkeypatch, tmp_path):

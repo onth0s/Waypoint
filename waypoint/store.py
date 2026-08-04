@@ -49,14 +49,17 @@ class Bookmarks:
 
 
 def data_dir() -> Path:
-    """Where waypoint.yaml lives. Resolution order: WP_HOME -> config home -> project dir."""
+    """Where waypoint.yaml lives.
+
+    Resolution order: WP_HOME -> config home -> ~/.waypoint -> project dir.
+    """
     env = os.environ.get("WP_HOME")
     if env and env.strip():
         return Path(env).expanduser()
     home = load_config()["home"]
     if home:
         return Path(home).expanduser()
-    return PROJECT_DIR
+    return Path.home() / ".waypoint"
 
 
 def bookmarks_path() -> Path:

@@ -18,10 +18,10 @@ __all__ = ["_nav", "_default_target", "_require_dir", "_record_origin"]
 def _record_origin(target: str) -> None:
     """Push the pre-jump cwd onto the undo stack (skip no-move / duplicates)."""
     origin = os.getcwd()
-    if origin == target:
+    if os.path.normcase(origin) == os.path.normcase(target):
         return
     entries = store.load_history()
-    if entries and entries[-1] == origin:
+    if entries and os.path.normcase(entries[-1]) == os.path.normcase(origin):
         return
     store.save_history(entries + [origin])
 

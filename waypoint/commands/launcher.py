@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 
 from rich.console import Console
@@ -24,8 +25,15 @@ def _open(kind: str, console: Console) -> int:
         return EXIT_ERROR
     app = "Explorer" if kind == "explorer" else "VS Code"
     exe = "explorer" if kind == "explorer" else "code"
+    resolved = shutil.which(exe)
+    if resolved is None:
+        err(console, f"{app} not found on PATH.")
+        return EXIT_ERROR
     try:
-        subprocess.Popen([exe, target])
+        if resolved.lower().endswith((".cmd", ".bat")):
+            subprocess.Popen(["cmd", "/c", resolved, target])
+        else:
+            subprocess.Popen([resolved, target])
     except FileNotFoundError:
         err(console, f"{app} not found on PATH.")
         return EXIT_ERROR

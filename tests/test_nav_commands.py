@@ -44,3 +44,16 @@ def test_nav_missing_alias(tmp_path, capsys):
     cmd = Command(kind="nav", args=["nonexistent"])
     rc = _nav(cmd, console)
     assert rc == EXIT_ERROR
+
+
+def test_record_origin_case_insensitive(tmp_path, monkeypatch):
+    from waypoint.commands.nav import _record_origin
+    monkeypatch.chdir(tmp_path)
+
+    # Path with different casing on Windows (e.g., upper/lower case drive/dir)
+    different_case = str(tmp_path).upper() if str(tmp_path).islower() else str(tmp_path).lower()
+    _record_origin(different_case)
+
+    # History should remain empty because normcase recognizes origin == target
+    assert store.load_history() == []
+

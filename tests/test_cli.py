@@ -520,7 +520,9 @@ def test_open_explorer_and_code(monkeypatch, tmp_path, capsys):
     assert _run(monkeypatch, tmp_path, ["-vs"]) == 0
     capsys.readouterr()
     # default bookmark is the seeded `wp` -> PROJECT_DIR (tmp_path)
-    assert calls == [["explorer", str(tmp_path)], ["code", str(tmp_path)]]
+    assert len(calls) == 2
+    assert calls[0][-1] == str(tmp_path)
+    assert calls[1][-1] == str(tmp_path)
 
 
 def test_help_and_flags(monkeypatch, tmp_path, capsys):
@@ -739,3 +741,36 @@ def test_add_clipboard_file_uses_parent(monkeypatch, tmp_path, capsys):
     capsys.readouterr()
     assert rc == 0
     assert store.load_bookmarks().bookmarks["docs"] == str(tmp_path)
+
+
+# --- store command -----------------------------------------------------------
+
+
+def test_store_no_args_prints_paths(monkeypatch, tmp_path, capsys):
+    rc = _run(monkeypatch, tmp_path, ["store"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "bookmarks:" in out
+    assert "history:" in out
+
+
+def test_store_alias_sets_config_home(monkeypatch, tmp_path, capsys):
+    target = _add_dev(monkeypatch, tmp_path)
+    assert _run(monkeypatch, tmp_path, ["add", "myalias", str(target)]) == 0
+    capsys.readouterr()
+    rc = _run(monkeypatch, tmp_path, ["store", "myalias"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Store home set to" in out
+    assert store.load_config()["home"] == str(target)
+
+
+def test_store_path_creates_and_sets_config_home(monkeypatch, tmp_path, capsys):
+    target = tmp_path / "new_store"
+    rc = _run(monkeypatch, tmp_path, ["store", str(target)])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Store home set to" in out
+    assert target.is_dir()
+    assert store.load_config()["home"] == str(target)
+

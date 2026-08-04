@@ -40,8 +40,12 @@ def _rm(cmd: Command, console: Console) -> int:
     alias = cmd.args[0]
     assert alias is not None
     b = store.load_bookmarks()
-    if alias not in b.bookmarks and alias.rstrip(" *") in b.bookmarks:
-        alias = alias.rstrip(" *")
+    if (
+        alias not in b.bookmarks
+        and alias.endswith(" *")
+        and alias.removesuffix(" *") in b.bookmarks
+    ):
+        alias = alias.removesuffix(" *")
     if alias not in b.bookmarks:
         err(console, f"No bookmark {alias!r}.")
         return EXIT_ERROR

@@ -46,3 +46,43 @@ def test_ls_bookmarks(tmp_path, capsys):
     out = capsys.readouterr().out
     assert rc == EXIT_OK
     assert "dev *" in out
+
+
+def test_rm_star_alias_vs_suffix(tmp_path):
+    console = Console()
+    target_dev = tmp_path / "dev"
+    target_star = tmp_path / "devstar"
+    target_dev.mkdir()
+    target_star.mkdir()
+
+    b = store.Bookmarks(
+        bookmarks={"dev": str(target_dev), "dev*": str(target_star)}, default="dev"
+    )
+    store.save_bookmarks(b)
+
+    # wp rm dev* removes dev*, leaving dev
+    cmd = Command(kind="rm", args=["dev*"])
+    rc = _rm(cmd, console)
+    assert rc == EXIT_OK
+    b = store.load_bookmarks()
+    assert "dev*" not in b.bookmarks
+    assert "dev" in b.bookmarks
+    assert b.default == "dev"
+
+    # wp rm "dev *" removes default dev (using ls label syntax)
+    cmd = Command(kind="rm", args=["dev *"])
+    rc = _rm(cmd, console)
+    assert rc == EXIT_OK
+    b = store.load_bookmarks()
+    assert "dev" not in b.bookmarks
+    assert b.default is None
+
+
+def test_ls_empty_bookmarks(capsys):
+    console = Console()
+    store.save_bookmarks(store.Bookmarks(bookmarks={}, default=None))
+    rc = _ls(console)
+    out = capsys.readouterr().out
+    assert rc == EXIT_OK
+    assert "No bookmarks yet" in out
+

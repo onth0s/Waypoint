@@ -22,11 +22,13 @@ from waypoint.commands import (
     _config,
     _default,
     _help,
+    _history,
     _ls,
     _nav,
     _open,
     _rm,
     _set,
+    _undo,
 )
 from waypoint.constants import EXIT_ERROR, EXIT_USAGE
 from waypoint.output import err, hint
@@ -75,6 +77,10 @@ def dispatch(cmd: Command, console: Console) -> int:
     """Route a parsed command to its handler."""
     if cmd.kind == "nav":
         return _nav(cmd, console)
+    if cmd.kind == "undo":
+        return _undo(cmd, console)
+    if cmd.kind == "history":
+        return _history(cmd, console)
     if cmd.kind == "add":
         return _add(cmd, console)
     if cmd.kind == "rm":

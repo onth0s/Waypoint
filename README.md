@@ -18,9 +18,19 @@ Adds a `wp` function to your PowerShell `$PROFILE`. The installer uses `pip inst
 ```
 wp              → go to default bookmark
 wp <alias>      → go to bookmark named <alias>
+wp undo [N]     → go back N navigation steps (default 1)
+wp history      → show the last 5 navigation steps
+wp history --all → show the full navigation history
 ```
 
 `wp` is always a shell `cd`. No subcommand needed.
+
+Every successful `wp` jump records where you *came from*; `wp undo` walks back
+through those origins (stale, deleted dirs are skipped). `wp history` (alias
+`wp h`) lists the newest 5 newest first, so index N matches `wp undo N`;
+`wp h --all` (also `--full`, `full`, `all`, `f`, `a`) shows the whole stack.
+The stack is capped at 50 entries (`UNDO_STACK` in `waypoint/constants.py`);
+the default window size is `HISTORY_PREVIEW` (5).
 
 ### Manage bookmarks
 
@@ -66,12 +76,12 @@ wp -?       → show usage
 
 The parser is greedy on aliases. `wp <anything>` resolves as:
 
-1. If `<anything>` matches a **reserved keyword** (`add`, `rm`, `ls`, `list`, `default`, `set`, `config`, `help`, `.`, `-vs`, `-h`, `-?`) → run the subcommand.
+1. If `<anything>` matches a **reserved keyword** (`add`, `rm`, `ls`, `list`, `default`, `set`, `config`, `help`, `undo`, `u`, `history`, `h`, `.`, `-vs`, `-h`, `-?`) → run the subcommand.
 2. Otherwise → treat it as a bookmark alias and navigate to it.
 
 This means `wp dev` goes to the "dev" bookmark. `wp add` runs the add subcommand. No disambiguation needed — reserved words are a small, closed set.
 
-Reserved keywords: `add`, `rm`, `ls`, `list`, `default`, `set`, `config`, `help`, `.`, `-vs`, `-h`, `-?`
+Reserved keywords: `add`, `rm`, `ls`, `list`, `default`, `set`, `config`, `help`, `undo`, `u`, `history`, `h`, `.`, `-vs`, `-h`, `-?`
 
 ### Default bookmark
 
@@ -94,6 +104,15 @@ default: wp
 ```
 
 `wp` (no args) navigates to the `default` bookmark. The default starts as `wp`, pointing back at the project dir itself. `wp wp` also goes there.
+
+### `history.yaml` — navigation history
+
+```yaml
+- "C:\\Users\\you\\dev\\website"
+- "C:\\Users\\you\\dev"
+```
+
+The origins of every successful `wp` jump, oldest first. Missing file = empty history. Written atomically alongside `waypoint.yaml` and trimmed to the newest 50 entries; the CLI's undo walks it newest-first.
 
 ### `wp set`
 
@@ -132,6 +151,7 @@ Waypoint/
 ├── .gitattributes
 ├── config.yaml         ← tool settings (home path, etc.)
 ├── waypoint.yaml       ← bookmarks + default (created & seeded on first use; not tracked)
+├── history.yaml        ← navigation history (created & updated by every wp jump; not tracked)
 ├── waypoint/
 │   ├── __init__.py
 │   ├── __main__.py     ← entry point (thin: imports and calls main)
@@ -154,6 +174,7 @@ Waypoint/
 ## Notes
 
 - The `install.ps1` path is hardcoded to this project location. If the project moves, re-run `install.ps1`.
+- The installer also overrides the built-in `cd`/`chdir` aliases with `Set-WaypointLocation`, so plain directory changes (including `cd -`, which toggles to the previous location) feed an in-session history, `$global:WpHistory`. `wp` jumps route through the same wrapper. `cdh` prints the session history. That stack is session-local; `wp undo`/`wp history` read the persistent `history.yaml` stack instead.
 - The `wp` bookmark is self-referential: it points back at the project dir. This is intentional — `wp wp` = "go to waypoint itself."
 - Navigation prints the resolved absolute path as the *only* stdout line; `wp` then `Set-Location`s there. Every other command prints rich-formatted output (AGENTS.md), which the wrapper re-emits — a bare existing path on stdout is the one thing that triggers a `cd`, so `wp ls` or an error can never move you.
 - Colors: the wrapper sets `WP_FORCE_COLOR=1` for interactive sessions (stdout is a pipe to PowerShell, which would otherwise make rich drop color), and removes it afterwards. Plain `python waypoint/__main__.py` runs without forced color.

@@ -104,3 +104,41 @@ def test_save_config_home_none_resets(monkeypatch, tmp_path):
     assert store.load_config()["home"] is None
     text = (tmp_path / "config.yaml").read_text(encoding="utf-8")
     assert "home: null" in text
+
+
+def test_history_roundtrip(monkeypatch, tmp_path):
+    _isolate(monkeypatch, tmp_path, home=tmp_path / "data")
+    assert store.load_history() == []
+    store.save_history([r"C:\a", r"C:\b"])
+    assert store.load_history() == [r"C:\a", r"C:\b"]
+    assert (tmp_path / "data" / "history.yaml").is_file()
+
+
+def test_history_missing_file_is_empty(monkeypatch, tmp_path):
+    _isolate(monkeypatch, tmp_path, home=tmp_path / "data")
+    assert store.load_history() == []
+
+
+def test_history_follows_data_dir(monkeypatch, tmp_path):
+    _isolate(monkeypatch, tmp_path, home=tmp_path / "data")
+    store.save_history([r"C:\a"])
+    assert store.history_path() == tmp_path / "data" / "history.yaml"
+    assert store.history_path().is_file()
+
+
+def test_history_corrupt_raises(monkeypatch, tmp_path):
+    _isolate(monkeypatch, tmp_path, home=tmp_path / "data")
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "history.yaml").write_text("bookmarks: {bad\n", encoding="utf-8")
+    with pytest.raises(store.StoreError):
+        store.load_history()
+
+
+def test_history_non_list_raises(monkeypatch, tmp_path):
+    _isolate(monkeypatch, tmp_path, home=tmp_path / "data")
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "history.yaml").write_text("not-a-list\n", encoding="utf-8")
+    with pytest.raises(store.StoreError):
+        store.load_history()

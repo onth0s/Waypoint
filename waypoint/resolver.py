@@ -9,7 +9,24 @@ __all__ = ["RESERVED", "Command", "UsageError", "parse_args", "validate_alias", 
 
 # `config` joins README's reserved list so that `wp config home <path>` (README,
 # Data section) parses instead of being treated as a bookmark named "config".
-RESERVED = {"add", "rm", "ls", "list", "default", "set", "config", "help", ".", "-vs", "-h", "-?"}
+RESERVED = {
+    "add",
+    "rm",
+    "ls",
+    "list",
+    "default",
+    "set",
+    "config",
+    "help",
+    "undo",
+    "u",
+    "history",
+    "h",
+    ".",
+    "-vs",
+    "-h",
+    "-?",
+}
 
 
 class UsageError(Exception):
@@ -32,6 +49,10 @@ def parse_args(argv: list[str]) -> Command:
     if head in ("help", "-h", "-?"):
         _require(rest, 0, "wp help takes no arguments")
         return Command(kind="help", args=[])
+    if head in ("history", "h"):
+        return _parse_history(rest)
+    if head in ("undo", "u"):
+        return _parse_undo(rest)
     if head in (".", "-vs"):
         _require(rest, 0, f"wp {head} takes no arguments")
         return Command(kind="explorer" if head == "." else "code", args=[])
@@ -62,6 +83,30 @@ def parse_args(argv: list[str]) -> Command:
     if len(rest) == 2 and rest[0] == "home":
         return Command(kind="config", args=["home", rest[1]])
     raise UsageError("usage: wp config [home <path>]")
+
+
+FULL_FLAGS = ("--full", "--all", "full", "all", "f", "a")
+
+
+def _parse_history(rest: list[str]) -> Command:
+    """`wp history` shows the default window; a full flag shows the whole stack."""
+    if not rest:
+        return Command(kind="history", args=[None])
+    if len(rest) == 1 and rest[0] in FULL_FLAGS:
+        return Command(kind="history", args=["all"])
+    raise UsageError("usage: wp history [--full|--all|full|all|f|a]")
+
+
+def _parse_undo(rest: list[str]) -> Command:
+    """`wp undo` or `wp undo <N>`; N must be a positive integer (steps back)."""
+    if len(rest) > 1:
+        raise UsageError("usage: wp undo [N]")
+    if not rest:
+        return Command(kind="undo", args=[None])
+    n = rest[0]
+    if not n.isdigit() or int(n) < 1:
+        raise UsageError("usage: wp undo [N]  (N must be a positive integer)")
+    return Command(kind="undo", args=[n])
 
 
 def _parse_add(rest: list[str]) -> Command:

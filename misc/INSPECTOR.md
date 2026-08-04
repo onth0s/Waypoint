@@ -126,6 +126,17 @@ Run **every** row. L1 on all rows; L2 on the rows marked `[L2]`.
 | `wp wp` | self-referential → project dir (95, 156) | exit 0; stdout = project dir path |
 | `wp <unknown-alias>` | only reserved words run subcommands (68-71) | non-zero exit; **no** bare existing path on stdout (must never cd) |
 | `wp <alias>` where alias exists | — | `[L2]`: `$PWD` == resolved path |
+| `wp <alias>` then `wp undo` | record origin, walk back (19-29) | first jump seeds `history.yaml` (under `T\home`) with the pre-jump cwd; `wp undo` exits 0 and stdout = exactly that cwd; history entry removed |
+| `wp undo` with empty history | — | non-zero exit; **no** bare existing path on stdout; hint text |
+| `wp undo 2` | go back N steps (20) | after two recorded jumps, exits 0, stdout = origin of the jump before last; both entries popped |
+| `wp undo 0` / `wp undo x` / `wp undo 1 2` | usage (20) | exit 2 with a usage message |
+| `wp history` | show newest 5, newest first (22-23, 29-31) | exit 0; indexed lines `N  <path>`, newest first, at most 5 rows; `N` stays a true undo index; a `(K more; run wp h --all)` footer when deeper; **no single** bare existing-path line (§5.1) — even a one-entry history prints a prefixed line |
+| `wp history --all` (+ `--full`/`full`/`all`/`f`/`a`) | full stack (23, 31-33) | exit 0; every entry printed, no footer |
+| `wp history` with 6+ entries | window + footer (22, 29) | exactly 5 rows plus the `K more` footer |
+| `wp h` | alias for history (20) | identical to `wp history` |
+| `wp history` with empty history | — | exit 0; hint text, no bare path line |
+| `wp history <other>` / extra args | usage (84) | exit 2 with a usage message |
+| `wp set` / `wp default` / `wp add` | state-only, never recorded (28) | `history.yaml` unchanged after each |
 
 ### Manage bookmarks
 
@@ -207,7 +218,7 @@ intercept the shell-open. Do not attempt to mock it. Instead:
 | `wp -h` | show usage (61) | usage on stdout, exit 0 |
 | `wp -?` | listed in reserved set (73), absent from greedy list (68) and help section (60-61) | **dissonance probe:** does the command exist at all? record both ways |
 | reserved-collision: `wp add add <path>` then `wp add` | reserved words beat aliases (66-71) | reserved names are REJECTED as bookmark names (`Error: '<alias>' is a reserved word and can't be a bookmark name`, exit 2 — stronger than the README guarantee); then `wp add` still runs the subcommand, never navigates |
-| reserved-set sweep: each token in line 73 (`add`, `rm`, `ls`, `default`, `set`, `config`, `help`, `.`, `-vs`, `-h`, `-?`) | closed set of keywords (71, 73) | each behaves as a keyword, none navigates as an alias |
+| reserved-set sweep: each token in line 73 (`add`, `rm`, `ls`, `default`, `set`, `config`, `help`, `undo`, `u`, `history`, `h`, `.`, `-vs`, `-h`, `-?`) | closed set of keywords (71, 73) | each behaves as a keyword, none navigates as an alias |
 
 ## 5. Contracts asserted per probe
 

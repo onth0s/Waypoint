@@ -8,16 +8,21 @@ from pathlib import Path
 
 import yaml
 
+from waypoint.constants import UNDO_STACK
+
 __all__ = [
     "Bookmarks",
     "StoreError",
     "BookmarkNotFoundError",
     "data_dir",
     "bookmarks_path",
+    "history_path",
     "load_config",
     "save_config_home",
     "load_bookmarks",
     "save_bookmarks",
+    "load_history",
+    "save_history",
     "PROJECT_DIR",
 ]
 
@@ -56,6 +61,10 @@ def data_dir() -> Path:
 
 def bookmarks_path() -> Path:
     return data_dir() / "waypoint.yaml"
+
+
+def history_path() -> Path:
+    return data_dir() / "history.yaml"
 
 
 def load_config() -> dict[str, str | None]:
@@ -133,3 +142,28 @@ def _atomic_write(path: Path, payload: str) -> None:
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(payload, encoding="utf-8")
     os.replace(tmp, path)
+
+
+def load_history() -> list[str]:
+    """Read the navigation-origin stack (oldest first). Missing file -> empty."""
+    path = history_path()
+    if not path.is_file():
+        return []
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError:
+        raise StoreError("history.yaml is not valid YAML") from None
+    if data is None:
+        return []
+    if not isinstance(data, list) or not all(isinstance(p, str) for p in data):
+        raise StoreError("history.yaml must be a list of paths")
+    return data
+
+
+def save_history(entries: list[str]) -> None:
+    """Write the navigation-origin stack, keeping only the newest UNDO_STACK."""
+    path = history_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    kept = entries[-UNDO_STACK:]
+    payload = yaml.safe_dump(kept, default_flow_style=False)
+    _atomic_write(path, payload)

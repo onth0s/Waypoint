@@ -13,3 +13,5 @@ build/
 config.yaml
 # Local bookmarks file — created and seeded on first use; machine-specific.
 waypoint.yaml
+# Local navigation history — created and updated by every wp jump.
+history.yaml

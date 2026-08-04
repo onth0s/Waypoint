@@ -98,6 +98,10 @@ def test_wrapper_protocol_invariant(monkeypatch, tmp_path, capsys):
         ["config"],
         ["config", "home", str(tmp_path / "home2")],
         ["help"],
+        ["history"],
+        ["h"],
+        ["undo"],
+        ["u"],
         ["."],
         ["-vs"],
         ["rm", "web"],
@@ -243,6 +247,216 @@ def test_add_collision_cancel(monkeypatch, tmp_path, capsys):
     assert rc == 1
     assert "Cancelled" in out.out
     assert store.load_bookmarks().bookmarks["dev"] == str(target)
+
+
+# --- history / undo ---------------------------------------------------------
+
+
+def test_nav_records_origin_and_undo_returns(monkeypatch, tmp_path, capsys):
+    target = _add_dev(monkeypatch, tmp_path)
+    assert _run(monkeypatch, tmp_path, ["add", "dev", str(target)]) == 0
+    capsys.readouterr()
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.chdir(home)
+
+    rc = _run(monkeypatch, tmp_path, ["dev"])
+    out = capsys.readouterr()
+    assert rc == 0
+    assert out.out.strip() == str(target)
+    assert store.load_history() == [str(home)]
+
+    monkeypatch.chdir(target)
+    rc = _run(monkeypatch, tmp_path, ["undo"])
+    out = capsys.readouterr()
+    assert rc == 0
+    assert out.out.strip() == str(home)
+    assert store.load_history() == []
+
+
+def test_nav_does_not_record_when_no_movement(monkeypatch, tmp_path, capsys):
+    target = _add_dev(monkeypatch, tmp_path)
+    assert _run(monkeypatch, tmp_path, ["add", "dev", str(target)]) == 0
+    capsys.readouterr()
+    monkeypatch.chdir(target)
+
+    rc = _run(monkeypatch, tmp_path, ["dev"])
+    capsys.readouterr()
+    assert rc == 0
+    assert store.load_history() == []
+
+
+def test_nav_dedupes_consecutive_origins(monkeypatch, tmp_path, capsys):
+    a = tmp_path / "a"
+    a.mkdir()
+    assert _run(monkeypatch, tmp_path, ["add", "aa", str(a)]) == 0
+    capsys.readouterr()
+    c = tmp_path / "c"
+    c.mkdir()
+    monkeypatch.chdir(c)
+    assert _run(monkeypatch, tmp_path, ["aa"]) == 0
+    capsys.readouterr()
+    assert store.load_history() == [str(c)]
+
+    monkeypatch.chdir(a)
+    assert _run(monkeypatch, tmp_path, ["aa"]) == 0
+    capsys.readouterr()
+    assert store.load_history() == [str(c)]
+
+
+def test_undo_count_steps_back_n(monkeypatch, tmp_path, capsys):
+    a = tmp_path / "a"
+    b = tmp_path / "b"
+    c = tmp_path / "c"
+    a.mkdir()
+    b.mkdir()
+    c.mkdir()
+    assert _run(monkeypatch, tmp_path, ["add", "aa", str(a)]) == 0
+    assert _run(monkeypatch, tmp_path, ["add", "bb", str(b)]) == 0
+    capsys.readouterr()
+
+    monkeypatch.chdir(c)
+    assert _run(monkeypatch, tmp_path, ["aa"]) == 0
+    capsys.readouterr()
+    monkeypatch.chdir(a)
+    assert _run(monkeypatch, tmp_path, ["bb"]) == 0
+    capsys.readouterr()
+
+    monkeypatch.chdir(b)
+    rc = _run(monkeypatch, tmp_path, ["undo", "2"])
+    out = capsys.readouterr()
+    assert rc == 0
+    assert out.out.strip() == str(c)
+    assert store.load_history() == []
+
+
+def test_undo_empty_errors(monkeypatch, tmp_path, capsys):
+    rc = _run(monkeypatch, tmp_path, ["undo"])
+    out = capsys.readouterr()
+    assert rc == 1
+    assert "No navigation history" in out.out
+    assert not _is_nav_protocol_hit(out.out)
+
+
+def test_undo_skips_stale_entries(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("WP_HOME", str(tmp_path / "data"))
+    monkeypatch.setattr(store, "PROJECT_DIR", tmp_path)
+    c = tmp_path / "c"
+    c.mkdir()
+    store.save_history([str(c), str(tmp_path / "gone")])
+    a = tmp_path / "a"
+    a.mkdir()
+    monkeypatch.chdir(a)
+
+    rc = _run(monkeypatch, tmp_path, ["undo"])
+    out = capsys.readouterr()
+    assert rc == 0
+    assert out.out.strip() == str(c)
+    assert store.load_history() == []
+
+
+def test_history_caps_at_undo_stack(monkeypatch, tmp_path):
+    from waypoint.constants import UNDO_STACK
+
+    monkeypatch.setenv("WP_HOME", str(tmp_path / "data"))
+    monkeypatch.setattr(store, "PROJECT_DIR", tmp_path)
+    entries = [str(tmp_path / f"d{i}") for i in range(55)]
+    store.save_history(entries)
+    hist = store.load_history()
+    assert len(hist) == UNDO_STACK
+    assert hist[0] == str(tmp_path / f"d{55 - UNDO_STACK}")
+
+
+def test_history_lists_newest_first(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("WP_HOME", str(tmp_path / "data"))
+    monkeypatch.setattr(store, "PROJECT_DIR", tmp_path)
+    c = tmp_path / "c"
+    c.mkdir()
+    store.save_history([str(tmp_path / "old"), str(c)])
+    rc = _run(monkeypatch, tmp_path, ["history"])
+    out = capsys.readouterr()
+    assert rc == 0
+    assert not _is_nav_protocol_hit(out.out)
+    assert str(c) in out.out
+
+
+def test_history_default_window_and_full(monkeypatch, tmp_path, capsys):
+    from waypoint.constants import HISTORY_PREVIEW
+
+    monkeypatch.setenv("WP_HOME", str(tmp_path / "data"))
+    monkeypatch.setattr(store, "PROJECT_DIR", tmp_path)
+    entries = [str(tmp_path / f"d{i}") for i in range(7)]
+    store.save_history(entries)
+
+    rc = _run(monkeypatch, tmp_path, ["h"])
+    out = capsys.readouterr()
+    assert rc == 0
+    lines = out.out.splitlines()
+    # Newest 5 of 7, indexed from 1 (true undo index), plus a "N more" footer.
+    assert len(lines) == HISTORY_PREVIEW + 1
+    assert lines[0].startswith("1  ")
+    assert lines[0].endswith("d6")
+    assert lines[-2].startswith("5  ")
+    assert lines[-2].endswith("d2")
+    assert "2 more" in out.out
+    assert not _is_nav_protocol_hit(out.out)
+
+    rc = _run(monkeypatch, tmp_path, ["history", "--all"])
+    out = capsys.readouterr()
+    assert rc == 0
+    lines = out.out.splitlines()
+    assert len(lines) == 7
+    assert lines[0].startswith("1  ") and lines[0].endswith("d6")
+    assert lines[-1].startswith("7  ") and lines[-1].endswith("d0")
+    assert "more" not in out.out
+
+
+def test_history_full_flag_forms(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("WP_HOME", str(tmp_path / "data"))
+    monkeypatch.setattr(store, "PROJECT_DIR", tmp_path)
+    store.save_history([str(tmp_path / "only")])
+    for argv in (["h", "f"], ["h", "a"], ["h", "full"], ["history", "all"]):
+        rc = _run(monkeypatch, tmp_path, argv)
+        out = capsys.readouterr()
+        assert rc == 0, argv
+        assert "only" in out.out, argv
+        assert "more" not in out.out, argv
+
+
+def test_history_window_undersized_no_footer(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("WP_HOME", str(tmp_path / "data"))
+    monkeypatch.setattr(store, "PROJECT_DIR", tmp_path)
+    store.save_history([str(tmp_path / "only")])
+    rc = _run(monkeypatch, tmp_path, ["h"])
+    out = capsys.readouterr()
+    assert rc == 0
+    assert "more" not in out.out
+
+
+def test_history_empty_hints(monkeypatch, tmp_path, capsys):
+    rc = _run(monkeypatch, tmp_path, ["h"])
+    out = capsys.readouterr()
+    assert rc == 0
+    assert "No navigation history" in out.out
+    assert not _is_nav_protocol_hit(out.out)
+
+
+def test_set_default_add_do_not_record(monkeypatch, tmp_path, capsys):
+    target = _add_dev(monkeypatch, tmp_path)
+    assert _run(monkeypatch, tmp_path, ["add", "dev", str(target)]) == 0
+    assert _run(monkeypatch, tmp_path, ["default", "dev"]) == 0
+    capsys.readouterr()
+    assert _run(monkeypatch, tmp_path, ["set"]) == 0
+    capsys.readouterr()
+    assert store.load_history() == []
+
+
+def test_undo_usage_error(monkeypatch, tmp_path, capsys):
+    for argv in (["undo", "0"], ["undo", "-1"], ["undo", "x"], ["undo", "1", "2"]):
+        rc = _run(monkeypatch, tmp_path, argv)
+        out = capsys.readouterr()
+        assert rc == 2, argv
+        assert "usage" in out.out.lower(), argv
 
 
 # --- default / rm / config / open / help ------------------------------------

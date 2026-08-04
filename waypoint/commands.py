@@ -14,12 +14,23 @@ from rich.console import Console
 from rich.table import Table
 
 from waypoint import store
-from waypoint.constants import EXIT_ERROR, EXIT_OK, TEMP_SLOT
+from waypoint.constants import EXIT_ERROR, EXIT_OK, HISTORY_PREVIEW, TEMP_SLOT
 from waypoint.output import err, hint, ok, warn
 from waypoint.prompts import prompt_name
 from waypoint.resolver import Command, looks_like_path
 
 # --- navigation -------------------------------------------------------------
+
+
+def _record_origin(target: str) -> None:
+    """Push the pre-jump cwd onto the undo stack (skip no-move / duplicates)."""
+    origin = os.getcwd()
+    if origin == target:
+        return
+    entries = store.load_history()
+    if entries and entries[-1] == origin:
+        return
+    store.save_history(entries + [origin])
 
 
 def _nav(cmd: Command, console: Console) -> int:
@@ -41,6 +52,7 @@ def _nav(cmd: Command, console: Console) -> int:
         assert b.default is not None  # _default_target only returns a target when one exists
         if not _require_dir(target, b.default, console):
             return EXIT_ERROR
+    _record_origin(target)
     sys.stdout.write(target + "\n")
     return EXIT_OK
 
@@ -62,6 +74,45 @@ def _require_dir(target: str, label: str, console: Console) -> bool:
         err(console, f"Bookmark {label!r} points to a path that doesn't exist: {target}")
         return False
     return True
+
+
+# --- history / undo ---------------------------------------------------------
+
+
+def _undo(cmd: Command, console: Console) -> int:
+    """Pop N navigation origins (stale entries auto-skipped) and print the target."""
+    count = 1 if cmd.args[0] is None else int(cmd.args[0])
+    entries = store.load_history()
+    found = 0
+    for i in range(len(entries) - 1, -1, -1):
+        if not os.path.isdir(entries[i]):
+            continue
+        found += 1
+        if found == count:
+            target = entries[i]
+            store.save_history(entries[:i])
+            sys.stdout.write(target + "\n")
+            return EXIT_OK
+    err(console, "No navigation history to undo.")
+    hint(console, "Navigate somewhere with [bold]wp <alias>[/bold] first.")
+    return EXIT_ERROR
+
+
+def _history(cmd: Command, console: Console) -> int:
+    """Show the undo stack, newest first (index N = `wp undo N`)."""
+    entries = store.load_history()
+    if not entries:
+        hint(console, "No navigation history yet. Navigate with [bold]wp <alias>[/bold] first.")
+        return EXIT_OK
+    shown = entries if cmd.args[0] == "all" else entries[-HISTORY_PREVIEW:]
+    # Indexed lines, not a Table: full paths must survive the 80-col pipe and
+    # rich cell truncation, and a prefixed line can never trip the cd gate.
+    for i, path in enumerate(reversed(shown), start=1):
+        console.print(f"{i}  {path}", soft_wrap=True)
+    hidden = len(entries) - len(shown)
+    if hidden > 0:
+        hint(console, f"({hidden} more; run [bold]wp h --all[/bold])")
+    return EXIT_OK
 
 
 # --- manage bookmarks -------------------------------------------------------
@@ -229,6 +280,9 @@ def _help(console: Console) -> int:
     console.print("[bold]Navigate[/bold]")
     console.print("  wp                  go to default bookmark")
     console.print("  wp <alias>          go to bookmark named <alias>")
+    console.print("  wp undo [N]         go back N navigation steps (wp u)")
+    console.print(f"  wp history          show last {HISTORY_PREVIEW} navigation steps (wp h)")
+    console.print("  wp history --all    show the full navigation history (wp h --all)")
     console.print()
     console.print("[bold]Manage[/bold]")
     console.print("  wp add [alias] [path]   bookmark a directory (prompts for name if omitted)")

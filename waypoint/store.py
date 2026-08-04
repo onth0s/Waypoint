@@ -8,12 +8,33 @@ from pathlib import Path
 
 import yaml
 
+__all__ = [
+    "Bookmarks",
+    "StoreError",
+    "BookmarkNotFoundError",
+    "data_dir",
+    "bookmarks_path",
+    "load_config",
+    "save_config_home",
+    "load_bookmarks",
+    "save_bookmarks",
+    "PROJECT_DIR",
+]
+
 # Discovered via Path(__file__).parent.parent from waypoint/__init__.py (README, Data section).
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 
 
 class StoreError(Exception):
     """Raised when a data file is missing, malformed, or corrupt."""
+
+
+class BookmarkNotFoundError(Exception):
+    """Raised when a bookmark alias does not exist."""
+
+    def __init__(self, alias: str) -> None:
+        self.alias = alias
+        super().__init__(f"No bookmark '{alias}'.")
 
 
 @dataclass
@@ -37,7 +58,7 @@ def bookmarks_path() -> Path:
     return data_dir() / "waypoint.yaml"
 
 
-def load_config() -> dict:
+def load_config() -> dict[str, str | None]:
     """Read config.yaml from the project dir. Missing file -> default settings."""
     path = PROJECT_DIR / "config.yaml"
     if not path.is_file():

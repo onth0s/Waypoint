@@ -5,11 +5,10 @@ if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
-# Ensure the Python dependencies the CLI needs are importable.
 python -c "import rich, pyperclip, yaml" 2>$null
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Installing dependencies: rich, pyperclip, pyyaml" -ForegroundColor Yellow
-    python -m pip install rich pyperclip pyyaml
+    Write-Host "Installing dependencies via pyproject.toml..." -ForegroundColor Yellow
+    python -m pip install -e ".[dev]"
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to install dependencies." -ForegroundColor Red
         exit 1

@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+__all__ = ["RESERVED", "Command", "UsageError", "parse_args", "validate_alias", "looks_like_path"]
+
 # `config` joins README's reserved list so that `wp config home <path>` (README,
 # Data section) parses instead of being treated as a bookmark named "config".
 RESERVED = {"add", "rm", "ls", "default", "set", "config", "help", ".", "-vs", "-h", "-?"}
@@ -17,7 +19,7 @@ class UsageError(Exception):
 @dataclass
 class Command:
     kind: str  # nav | add | rm | ls | default | set | config | help | explorer | code
-    args: list  # list[str | None]; shape is per-kind, see parse_args
+    args: list[str | None]  # shape is per-kind, see parse_args
 
 
 def parse_args(argv: list[str]) -> Command:

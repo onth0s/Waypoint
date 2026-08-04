@@ -9,7 +9,7 @@ cd "C:\Users\you\dev\Waypoint"
 .\install.ps1
 ```
 
-Adds a `wp` function to your PowerShell `$PROFILE`.
+Adds a `wp` function to your PowerShell `$PROFILE`. The installer uses `pip install -e ".[dev]"` to install runtime deps plus dev tools (pytest, ruff).
 
 ## Usage
 
@@ -126,19 +126,28 @@ Waypoint/
 ├── README.md           ← this file (the spec)
 ├── AGENTS.md           ← agent instructions
 ├── install.ps1         ← PowerShell profile installer
+├── pyproject.toml      ← packaging, deps, tool config
 ├── .gitignore
+├── .gitattributes
 ├── config.yaml         ← tool settings (home path, etc.)
 ├── waypoint.yaml       ← bookmarks + default (created & seeded on first use; not tracked)
 ├── waypoint/
 │   ├── __init__.py
 │   ├── __main__.py     ← entry point (thin: imports and calls main)
-│   ├── cli.py          ← dispatch + command orchestration
+│   ├── cli.py          ← dispatch + main()
+│   ├── commands.py     ← all command handlers
+│   ├── prompts.py      ← interactive prompting
+│   ├── constants.py    ← shared constants (exit codes, temp slot)
+│   ├── output.py       ← rich output helpers
 │   ├── store.py        ← read/write waypoint.yaml + config.yaml
 │   └── resolver.py     ← argv parsing + reserved keyword detection
 └── tests/
+    ├── conftest.py       ← shared fixtures
     ├── test_store.py     ← read/write round-trips, resolution order
     ├── test_resolver.py  ← parsing, reserved keywords, alias validation
-    └── test_cli.py       ← dispatch, exit codes, wrapper protocol
+    ├── test_cli.py       ← dispatch, exit codes, wrapper protocol
+    ├── test_constants.py ← constant integrity checks
+    └── test_output.py    ← output helper tests
 ```
 
 ## Notes
@@ -147,4 +156,4 @@ Waypoint/
 - The `wp` bookmark is self-referential: it points back at the project dir. This is intentional — `wp wp` = "go to waypoint itself."
 - Navigation prints the resolved absolute path as the *only* stdout line; `wp` then `Set-Location`s there. Every other command prints rich-formatted output (AGENTS.md), which the wrapper re-emits — a bare existing path on stdout is the one thing that triggers a `cd`, so `wp ls` or an error can never move you.
 - Colors: the wrapper sets `WP_FORCE_COLOR=1` for interactive sessions (stdout is a pipe to PowerShell, which would otherwise make rich drop color), and removes it afterwards. Plain `python waypoint/__main__.py` runs without forced color.
-- `install.ps1` needs `python` on PATH; it pip-installs `rich`, `pyperclip`, `pyyaml` if the import probe fails.
+- `install.ps1` needs `python` on PATH; it runs `pip install -e ".[dev]"` if the import probe fails.

@@ -9,5 +9,7 @@ venv/
 .mypy_cache/
 dist/
 build/
+# Local config — machine-specific home path override
+config.yaml
 # Local bookmarks file — created and seeded on first use; machine-specific.
 waypoint.yaml

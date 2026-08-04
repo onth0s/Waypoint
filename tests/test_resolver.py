@@ -68,7 +68,10 @@ def test_usage_errors(argv):
         parse_args(argv)
 
 
-@pytest.mark.parametrize("name", ["", "my alias", "add", "rm", "ls", "default", "set", "config", "help", ".", "-vs", "-h", "-?"])
+@pytest.mark.parametrize(
+    "name",
+    ["", "my alias", "add", "rm", "ls", "default", "set", "config", "help", ".", "-vs", "-h", "-?"],
+)
 def test_validate_alias_rejects(name):
     with pytest.raises(UsageError):
         validate_alias(name)

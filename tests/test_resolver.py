@@ -20,6 +20,8 @@ from waypoint.resolver import RESERVED, Command, UsageError, parse_args, validat
         (["rm", "dev"], "rm", ["dev"]),
         (["ls"], "ls", []),
         (["default", "dev"], "default", ["dev"]),
+        (["default", "."], "default", ["."]),
+        (["default", r"C:\path"], "default", [r"C:\path"]),
         (["config"], "config", [None]),
         (["config", "home", r"C:\home"], "config", ["home", r"C:\home"]),
         (["help"], "help", []),

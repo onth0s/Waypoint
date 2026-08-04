@@ -21,7 +21,7 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from waypoint import store
-from waypoint.resolver import Command, UsageError, parse_args, validate_alias
+from waypoint.resolver import Command, UsageError, looks_like_path, parse_args, validate_alias
 
 
 class _Cancelled(Exception):
@@ -167,9 +167,11 @@ def clipboard_path() -> str | None:
         return None
     if not text:
         return None
-    text = text.strip()
+    text = text.strip().strip('"')
     if os.path.isdir(text):
         return text
+    if os.path.isfile(text):
+        return os.path.dirname(text)
     return None
 
 
@@ -242,15 +244,27 @@ def _ls(console: Console) -> int:
 
 
 def _default(cmd: Command, console: Console) -> int:
-    alias = cmd.args[0]
+    arg = cmd.args[0]
     b = store.load_bookmarks()
-    if alias not in b.bookmarks:
-        console.print(f"[bold red]Error:[/bold red] No bookmark {alias!r}.")
-        return 1
-    b.default = alias
-    store.save_bookmarks(b)
-    console.print(f"[bold green]Default is now[/bold green] {alias}")
-    return 0
+    if arg in b.bookmarks:
+        b.default = arg
+        store.save_bookmarks(b)
+        console.print(f"[bold green]Default is now[/bold green] {arg}")
+        return 0
+    if looks_like_path(arg):
+        # Path form: point the default at a directory directly, via the `temp`
+        # slot bookmark — zzcd-style single-slot "current dir" memory.
+        target = os.path.abspath(os.path.expanduser(arg))
+        if not os.path.isdir(target):
+            console.print(f"[bold red]Error:[/bold red] not a directory: {target}")
+            return 1
+        b.bookmarks["temp"] = target
+        b.default = "temp"
+        store.save_bookmarks(b)
+        console.print(f"[bold green]Default is now[/bold green] temp → {target}")
+        return 0
+    console.print(f"[bold red]Error:[/bold red] No bookmark {arg!r}.")
+    return 1
 
 
 # --- settings ---------------------------------------------------------------
@@ -310,6 +324,7 @@ def _help(console: Console) -> int:
     console.print("  wp rm <alias>           delete a bookmark")
     console.print("  wp ls                   list all bookmarks")
     console.print("  wp default <alias>      set the default bookmark")
+    console.print("  wp default . | <path>   point default at a directory (temp slot)")
     console.print()
     console.print("[bold]Open[/bold]")
     console.print("  wp .                   open default bookmark in Explorer")

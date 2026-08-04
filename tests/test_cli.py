@@ -89,6 +89,8 @@ def test_wrapper_protocol_invariant(monkeypatch, tmp_path, capsys):
         ["ls"],
         ["add", "web", str(target)],
         ["default", "dev"],
+        ["default", "."],
+        ["default", str(target)],
         ["config"],
         ["config", "home", str(tmp_path / "home2")],
         ["help"],
@@ -332,3 +334,61 @@ def test_unforced_output_stays_plain(monkeypatch, tmp_path, capsys):
     out = capsys.readouterr()
     assert rc == 0
     assert "\x1b[" not in out.out
+
+
+def test_default_dot_sets_temp_to_cwd(monkeypatch, tmp_path, capsys):
+    monkeypatch.chdir(tmp_path)
+    rc = _run(monkeypatch, tmp_path, ["default", "."])
+    out = capsys.readouterr()
+    assert rc == 0
+    b = store.load_bookmarks()
+    assert b.default == "temp"
+    assert b.bookmarks["temp"] == str(tmp_path)
+    assert "temp" in out.out
+
+
+def test_default_path_creates_temp_slot(monkeypatch, tmp_path, capsys):
+    target = _add_dev(monkeypatch, tmp_path)
+    rc = _run(monkeypatch, tmp_path, ["default", str(target)])
+    out = capsys.readouterr()
+    assert rc == 0
+    b = store.load_bookmarks()
+    assert b.default == "temp"
+    assert b.bookmarks["temp"] == str(target)
+    assert "temp" in out.out
+
+
+def test_default_missing_path_errors(monkeypatch, tmp_path, capsys):
+    rc = _run(monkeypatch, tmp_path, ["default", str(tmp_path / "missing")])
+    out = capsys.readouterr()
+    assert rc == 1
+    assert "not a directory" in out.out
+
+
+def test_default_unknown_alias_still_errors(monkeypatch, tmp_path, capsys):
+    rc = _run(monkeypatch, tmp_path, ["default", "nope"])
+    out = capsys.readouterr()
+    assert rc == 1
+    assert "No bookmark" in out.out
+
+
+def test_default_alias_keeps_working_after_temp(monkeypatch, tmp_path, capsys):
+    target = _add_dev(monkeypatch, tmp_path)
+    assert _run(monkeypatch, tmp_path, ["add", "dev", str(target)]) == 0
+    capsys.readouterr()
+    assert _run(monkeypatch, tmp_path, ["default", "."]) == 0
+    capsys.readouterr()
+    assert _run(monkeypatch, tmp_path, ["default", "dev"]) == 0
+    capsys.readouterr()
+    assert store.load_bookmarks().default == "dev"
+
+
+def test_add_clipboard_file_uses_parent(monkeypatch, tmp_path, capsys):
+    f = tmp_path / "notes.txt"
+    f.write_text("x", encoding="utf-8")
+    monkeypatch.setattr(cli, "pyperclip", types.SimpleNamespace(paste=lambda: str(f)))
+    monkeypatch.setattr("builtins.input", lambda *a, **k: "docs")
+    rc = _run(monkeypatch, tmp_path, ["add"])
+    capsys.readouterr()
+    assert rc == 0
+    assert store.load_bookmarks().bookmarks["docs"] == str(tmp_path)

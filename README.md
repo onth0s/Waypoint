@@ -32,6 +32,8 @@ wp add .                → bookmark current dir (shorthand, same as bare `wp ad
 wp rm <alias>           → delete a bookmark
 wp ls                   → list all bookmarks
 wp default <alias>      → set the default bookmark
+wp default .            → point the default at the current directory (temp slot)
+wp default <path>       → point the default at an arbitrary directory (temp slot)
 ```
 
 ### Configure
@@ -72,6 +74,8 @@ Reserved keywords: `add`, `rm`, `ls`, `default`, `config`, `help`, `.`, `-vs`, `
 ### Default bookmark
 
 `wp` with no args navigates to the current default. `wp default <alias>` changes which bookmark is the default. The default is stored in the data file alongside bookmarks.
+
+`wp default .` and `wp default <path>` point the default at a directory directly: they store (or overwrite) a bookmark named `temp` and make it the default — a single-slot "current directory" memory, like a scratchpad. `wp rm temp` clears it. Any existing `temp` bookmark is overwritten by design.
 
 ## Data
 

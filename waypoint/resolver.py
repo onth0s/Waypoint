@@ -42,7 +42,7 @@ def parse_args(argv: list[str]) -> Command:
         _require(rest, 1, "usage: wp rm <alias>")
         return Command(kind="rm", args=[rest[0]])
     if head == "default":
-        _require(rest, 1, "usage: wp default <alias>")
+        _require(rest, 1, "usage: wp default <alias|path>")
         return Command(kind="default", args=[rest[0]])
     # config
     if not rest:
@@ -61,7 +61,7 @@ def _parse_add(rest: list[str]) -> Command:
         return Command(kind="add", args=[None, None])
     if len(rest) == 1:
         arg = rest[0]
-        if arg == "." or _looks_like_path(arg):
+        if arg == "." or looks_like_path(arg):
             # Path-form: bookmark this path, prompt for a name.
             return Command(kind="add", args=[None, arg])
         return Command(kind="add", args=[arg, None])
@@ -72,7 +72,7 @@ def _parse_add(rest: list[str]) -> Command:
     return Command(kind="add", args=[alias, path])
 
 
-def _looks_like_path(arg: str) -> bool:
+def looks_like_path(arg: str) -> bool:
     """Single-arg `wp add C:/x` means "bookmark this path", not "alias named C:/x"."""
     return any(sep in arg for sep in ("\\", "/")) or os.path.isdir(arg)
 

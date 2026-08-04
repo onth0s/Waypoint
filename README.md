@@ -27,7 +27,7 @@ wp history --all → show the full navigation history
 
 Every successful `wp` jump records where you *came from*; `wp undo` walks back
 through those origins (stale, deleted dirs are skipped). `wp history` (alias
-`wp h`) lists the newest 5 newest first, so index N matches `wp undo N`;
+`wp h`) lists the newest 5, newest first, so index N matches `wp undo N`;
 `wp h --all` (also `--full`, `full`, `all`, `f`, `a`) shows the whole stack.
 The stack is capped at 50 entries (`UNDO_STACK` in `waypoint/constants.py`);
 the default window size is `HISTORY_PREVIEW` (5).
@@ -149,18 +149,19 @@ Waypoint/
 ├── pyproject.toml      ← packaging, deps, tool config
 ├── .gitignore
 ├── .gitattributes
-├── config.yaml         ← tool settings (home path, etc.)
+├── config.yaml         ← tool settings (home path, etc.; not tracked)
 ├── waypoint.yaml       ← bookmarks + default (created & seeded on first use; not tracked)
 ├── history.yaml        ← navigation history (created & updated by every wp jump; not tracked)
+├── misc/INSPECTOR.md       ← black-box conformance protocol against this README
 ├── waypoint/
 │   ├── __init__.py
 │   ├── __main__.py     ← entry point (thin: imports and calls main)
 │   ├── cli.py          ← dispatch + main()
 │   ├── commands.py     ← all command handlers
 │   ├── prompts.py      ← interactive prompting
-│   ├── constants.py    ← shared constants (exit codes, temp slot)
+│   ├── constants.py    ← shared constants (exit codes, temp slot, history caps)
 │   ├── output.py       ← rich output helpers
-│   ├── store.py        ← read/write waypoint.yaml + config.yaml
+│   ├── store.py        ← read/write waypoint.yaml + history.yaml + config.yaml
 │   └── resolver.py     ← argv parsing + reserved keyword detection
 └── tests/
     ├── conftest.py       ← shared fixtures

@@ -325,7 +325,7 @@ Each item is independent; execute in listed order if selected:
 | 2 Typed Command payloads | complete | 2026-08-04 | Replaced Command(kind, args) with dataclass union, eliminated 7 assert statements, slimmed commands package init |
 | 3 Store hardening | complete | 2026-08-04 | Added home type check, fsync atomic write, parent mkdir, and updated store docstrings |
 | 4 Wrapper contract | complete | 2026-08-04 | Added test_wrapper_contract.py (_record_history + $interactiveCmds sync), updated README history docs |
-| 5 Spec sync & hygiene | complete | 2026-08-04 | Synced README + INSPECTOR to post-refactor truth, updated install.ps1 profile resolution, gitignore hygiene |
+| 5 Spec sync & hygiene | complete | 2026-08-04 | Synced README + INSPECTOR to post-refactor truth, updated install.ps1 profile resolution, gitignore hygiene. F13 data files: user confirmed deletion 2026-08-04 -- stale root waypoint.yaml/history.yaml/config.yaml removed (config held `home: null`, so data_dir resolution unchanged) |
 | 6 Gate decoupling | complete | 2026-08-04 | Removed pytest_sessionstart ruff gate, added scripts/check.ps1, updated README |
 | 7 Stretch backlog | pending | optional |
 

@@ -11,13 +11,13 @@ __all__ = ["err", "ok", "warn", "hint"]
 
 
 def err(console: Console, msg: str | Exception) -> None:
-    """Print a red error line."""
-    console.print(f"[bold red]Error:[/bold red] {msg}")
+    """Print a red error line. soft_wrap keeps an embedded path on one line."""
+    console.print(f"[bold red]Error:[/bold red] {msg}", soft_wrap=True)
 
 
 def ok(console: Console, msg: str) -> None:
-    """Print a green success line."""
-    console.print(f"[bold green]{msg}[/bold green]")
+    """Print a green success line. soft_wrap keeps an embedded path on one line."""
+    console.print(f"[bold green]{msg}[/bold green]", soft_wrap=True)
 
 
 def warn(console: Console, msg: str) -> None:

@@ -216,7 +216,7 @@ def _open(kind: str, console: Console) -> int:
     except FileNotFoundError:
         err(console, f"{app} not found on PATH.")
         return EXIT_ERROR
-    console.print(f"[cyan]Opening[/cyan] {target} in {app}")
+    console.print(f"[cyan]Opening[/cyan] {target} in {app}", soft_wrap=True)
     return EXIT_OK
 
 

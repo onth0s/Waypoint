@@ -121,6 +121,17 @@ def test_add_two_arg(monkeypatch, tmp_path, capsys):
     assert store.load_bookmarks().bookmarks["dev"] == str(target)
 
 
+def test_add_confirmation_long_path_not_folded(monkeypatch, tmp_path, capsys):
+    """A >80-char path must stay on one line in the confirmation (pipe width 80)."""
+    target = tmp_path / ("d" * 50)
+    target.mkdir()
+    assert len(str(target)) > 80
+    rc = _run(monkeypatch, tmp_path, ["add", "dev", str(target)])
+    out = capsys.readouterr()
+    assert rc == 0
+    assert f"Saved dev -> {target}" in out.out
+
+
 def test_add_reserved_alias_is_usage_error(monkeypatch, tmp_path, capsys):
     rc = _run(monkeypatch, tmp_path, ["add", "add", str(tmp_path)])
     out = capsys.readouterr()

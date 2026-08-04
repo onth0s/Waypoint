@@ -59,13 +59,14 @@ wp -vs      → open bookmarked dir in VS Code
 ```
 wp help     → show usage
 wp -h       → show usage
+wp -?       → show usage
 ```
 
 ## Design: reserved keywords vs aliases
 
 The parser is greedy on aliases. `wp <anything>` resolves as:
 
-1. If `<anything>` matches a **reserved keyword** (`add`, `rm`, `ls`, `list`, `default`, `set`, `config`, `help`, `.`, `-vs`, `-h`) → run the subcommand.
+1. If `<anything>` matches a **reserved keyword** (`add`, `rm`, `ls`, `list`, `default`, `set`, `config`, `help`, `.`, `-vs`, `-h`, `-?`) → run the subcommand.
 2. Otherwise → treat it as a bookmark alias and navigate to it.
 
 This means `wp dev` goes to the "dev" bookmark. `wp add` runs the add subcommand. No disambiguation needed — reserved words are a small, closed set.

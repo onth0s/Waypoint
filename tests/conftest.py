@@ -1,21 +1,10 @@
 """Shared fixtures for Waypoint tests."""
 
-import shutil
-import subprocess
-import sys
+from __future__ import annotations
 
 import pytest
 
 from waypoint import store
-
-
-def pytest_sessionstart(session):
-    """Gate the whole run on a clean lint, so `pytest` doubles as the check."""
-    if shutil.which("ruff") is None:
-        pytest.exit("ruff not installed; run: pip install -e .[dev]", returncode=2)
-    result = subprocess.run([sys.executable, "-m", "ruff", "check", "."])
-    if result.returncode != 0:
-        pytest.exit("ruff check failed", returncode=result.returncode)
 
 
 @pytest.fixture(autouse=True)

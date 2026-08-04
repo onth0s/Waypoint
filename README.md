@@ -156,6 +156,8 @@ Waypoint/
 ├── history.yaml              ← navigation history (created & updated by every wp jump; not tracked)
 ├── misc/INSPECTOR.md         ← black-box conformance protocol against this README
 ├── misc/REFACTORING_PLAN.md  ← codebase audit & sequential refactoring plan
+├── scripts/
+│   └── check.ps1             ← unified quality check runner (ruff + mypy + pytest)
 ├── waypoint/
 │   ├── __init__.py
 │   ├── __main__.py           ← entry point (thin: imports and calls main)
@@ -186,6 +188,19 @@ Waypoint/
     └── test_commands_exports.py  ← package export hygiene tests
 ```
 
+## Development & Quality Checks
+
+Run all quality gates (linting, static type checking, unit tests):
+
+```powershell
+.\scripts\check.ps1
+```
+
+Or run individually:
+- `python -m ruff check .`
+- `python -m mypy waypoint`
+- `python -m pytest -q`
+
 ## Notes
 
 - The `install.ps1` path is hardcoded to this project location. If the project moves, re-run `install.ps1`.
@@ -195,4 +210,5 @@ Waypoint/
 - Colors: the wrapper sets `WP_FORCE_COLOR=1` for interactive sessions (stdout is a pipe to PowerShell, which would otherwise make rich drop color), and removes it afterwards. Plain `python waypoint/__main__.py` runs without forced color.
 - `install.ps1` needs `python` on PATH; it runs `pip install -e ".[dev]"` if the import probe fails.
 - `PROJECT_DIR` in `store.py` locates `config.yaml` relative to the installed package path (`Path(__file__).resolve().parent.parent`). Waypoint requires installation in editable mode (`pip install -e .`).
+
 

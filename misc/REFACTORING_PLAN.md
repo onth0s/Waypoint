@@ -326,7 +326,7 @@ Each item is independent; execute in listed order if selected:
 | 3 Store hardening | complete | 2026-08-04 | Added home type check, fsync atomic write, parent mkdir, and updated store docstrings |
 | 4 Wrapper contract | complete | 2026-08-04 | Added test_wrapper_contract.py (_record_history + $interactiveCmds sync), updated README history docs |
 | 5 Spec sync & hygiene | complete | 2026-08-04 | Synced README + INSPECTOR to post-refactor truth, updated install.ps1 profile resolution, gitignore hygiene |
-| 6 Gate decoupling | pending | | |
+| 6 Gate decoupling | complete | 2026-08-04 | Removed pytest_sessionstart ruff gate, added scripts/check.ps1, updated README |
 | 7 Stretch backlog | pending | optional |
 
 ## Part 4 — Open questions register (decisions required)

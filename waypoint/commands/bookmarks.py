@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 
 from rich.console import Console
-from rich.table import Table
+from rich.table import Column, Table
 
 from waypoint import clipboard, store
 from waypoint.constants import EXIT_ERROR, EXIT_OK, TEMP_SLOT
@@ -64,10 +64,39 @@ def _ls(console: Console) -> int:
     if not b.bookmarks:
         hint(console, "No bookmarks yet. Add one with: [bold]wp add[/bold]")
         return EXIT_OK
-    table = Table("Alias", "Path")
+
+    # Group aliases by normalized path while preserving first-seen order
+    path_groups: dict[str, list[str]] = {}
     for alias, path in b.bookmarks.items():
-        label = f"{alias} *" if alias == b.default else alias
-        table.add_row(label, path, style="bold" if alias == b.default else None)
+        norm = os.path.normcase(path)
+        if norm not in path_groups:
+            path_groups[norm] = []
+        path_groups[norm].append(alias)
+
+    table = Table(
+        Column("Alias", style="cyan"),
+        Column("Path", style="bright_white"),
+        header_style="bold cyan",
+        show_edge=True,
+    )
+
+    # Reconstruct actual path for each norm key
+    path_map: dict[str, str] = {}
+    for _alias, path in b.bookmarks.items():
+        norm = os.path.normcase(path)
+        if norm not in path_map:
+            path_map[norm] = path
+
+    for norm, aliases in path_groups.items():
+        path = path_map[norm]
+        has_default = any(a == b.default for a in aliases)
+        formatted_aliases = [
+            f"{a} *" if a == b.default else a for a in aliases
+        ]
+        alias_str = ", ".join(formatted_aliases)
+        row_style = "bold green" if has_default else None
+        table.add_row(alias_str, path, style=row_style)
+
     console.print(table)
     hint(console, "* = default bookmark")
     return EXIT_OK

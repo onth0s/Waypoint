@@ -943,6 +943,21 @@ def test_ok_output_escapes_paths(monkeypatch, tmp_path, capsys):
     assert "[/bold green]" not in out
 
 
+def test_ls_groups_same_path_aliases(monkeypatch, tmp_path, capsys):
+    target = tmp_path / "shared"
+    target.mkdir()
+    _run(monkeypatch, tmp_path, ["add", "alias1", str(target)])
+    _run(monkeypatch, tmp_path, ["add", "alias2", str(target)])
+    _run(monkeypatch, tmp_path, ["default", "alias1"])
+    capsys.readouterr()
+
+    rc = _run(monkeypatch, tmp_path, ["ls"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "alias1 *, alias2" in out
+
+
+
 
 
 

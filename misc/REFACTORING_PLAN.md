@@ -231,12 +231,12 @@ explicitly marked `keep`).
 
 | Phase | Content | Status | Commit |
 |-------|---------|--------|--------|
-| 1 | Correctness fixes (G1-G4) | pending | — |
-| 2 | History/undo index alignment (G6) | pending | — |
-| 3 | `_set`/`_default` merge (G5) | pending | — |
-| 4 | Bare-`~` consistency + README (G7, G8) | pending | — |
-| 5 | Coverage hardening (G12) | pending | — |
-| 6 | Final verification & docs | pending | — |
+| 1 | Correctness fixes (G1-G4) | complete | `c87a909` |
+| 2 | History/undo index alignment (G6) & `wp h N` alias | complete | `a32f7f9` |
+| 3 | `_set`/`_default` merge (G5) | complete | `8895eb2` |
+| 4 | Bare-`~` consistency + README (G7, G8) | complete | `2872adf` |
+| 5 | Coverage hardening (G12) | complete | `0e7b22a` |
+| 6 | Final verification & docs | complete | `370e4a8` |
 
 Findings disposition: G1-G4 fix in Phase 1; G6 in Phase 2; G5 in Phase 3;
 G7-G8 in Phase 4; G12 in Phase 5; G9-G11, G13 keep (documented rationale in

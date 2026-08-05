@@ -56,6 +56,8 @@ from waypoint.resolver import (
         (["-?"], HelpCmd()),
         (["history"], HistoryCmd(full=False)),
         (["h"], HistoryCmd(full=False)),
+        (["history", "3"], HistoryCmd(count=3)),
+        (["h", "2"], HistoryCmd(count=2)),
         (["history", "--all"], HistoryCmd(full=True)),
         (["history", "--full"], HistoryCmd(full=True)),
         (["history", "all"], HistoryCmd(full=True)),

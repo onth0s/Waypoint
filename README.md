@@ -19,7 +19,7 @@ Adds a `wp` function to your PowerShell `$PROFILE`. The installer uses `pip inst
 wp              → go to default bookmark
 wp <alias>      → go to bookmark named <alias>
 wp undo [N]     → go back N navigation steps (default 1)
-wp history      → show the last 5 navigation steps
+wp history [N]  → show the last N navigation steps (default 5)
 wp history --all → show the full navigation history
 ```
 

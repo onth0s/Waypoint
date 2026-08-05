@@ -103,6 +103,7 @@ class HelpCmd:
 @dataclass
 class HistoryCmd:
     full: bool = False
+    count: int | None = None
 
 
 @dataclass
@@ -196,16 +197,14 @@ FULL_FLAGS = ("--full", "--all", "full", "all", "f", "a")
 
 
 def _parse_history(rest: list[str]) -> Command:
-    """`wp history` shows default window; `--full` shows whole stack.
-    `wp h N` acts as `wp undo N`.
-    """
+    """`wp history` shows default window; `--full` full stack; `wp history N` shows N steps."""
     if not rest:
         return HistoryCmd(full=False)
     if len(rest) == 1:
         if rest[0] in FULL_FLAGS:
             return HistoryCmd(full=True)
         if rest[0].isdigit() and int(rest[0]) >= 1:
-            return UndoCmd(steps=int(rest[0]))
+            return HistoryCmd(count=int(rest[0]))
     raise UsageError("usage: wp history [--full|--all|full|all|f|a|[N]]")
 
 

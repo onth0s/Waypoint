@@ -75,7 +75,7 @@ def _ls(console: Console) -> int:
 
     table = Table(
         Column("Alias", style="cyan"),
-        Column("Path", style="bright_white"),
+        Column("Path", style="bright_white", overflow="fold"),
         header_style="bold cyan",
         show_edge=True,
     )

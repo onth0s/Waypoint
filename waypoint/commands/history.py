@@ -56,7 +56,12 @@ def _history(cmd: HistoryCmd, console: Console) -> int:
         hint(console, "No navigation history yet. Navigate with [bold]wp <alias>[/bold] first.")
         return EXIT_OK
     live_paths = [p for _, p in live]
-    shown = live_paths if cmd.full else live_paths[-HISTORY_PREVIEW:]
+    if cmd.count is not None:
+        shown = live_paths if cmd.count >= len(live_paths) else live_paths[-cmd.count:]
+    elif cmd.full:
+        shown = live_paths
+    else:
+        shown = live_paths[-HISTORY_PREVIEW:]
     # Indexed lines, newest first: 1 = live_paths[-1], 2 = live_paths[-2]...
     for i, path in enumerate(reversed(shown), start=1):
         console.print(f"{i}  {path}", soft_wrap=True)

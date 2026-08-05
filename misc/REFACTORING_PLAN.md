@@ -1,12 +1,14 @@
 # REFACTORING_PLAN.md — Waypoint Codebase Audit & Sequential Refactor Plan
 
-Run date: 2026-08-04 | Branch: `dev` | Baseline: 174 tests passing, ruff clean, mypy strict clean.
+Run date: 2026-08-05 | Branch: `dev` | Baseline: 189 tests passing, ruff clean, mypy strict clean.
 
 This document is the product of a full audit of the Waypoint codebase and the
-refactoring plan that follows from it. **The plan MUST be executed sequentially:
-finish every phase in order, and never start phase N+1 until phase N meets its
-Definition of Done.** Phases are ordered so that behavior fixes land first
-(cheapest while the code is fresh), typing/structure hardening second, docs last.
+refactoring plan that follows from it. It supersedes the previous plan (executed
+in phases 1-6, see git log `d1480f6..`). **The plan MUST be executed
+sequentially: finish every phase in order, and never start phase N+1 until phase
+N meets its Definition of Done.** Phases are ordered so that behavior fixes land
+first (cheapest while the code is fresh), structural cleanup second, consistency
+and docs third, and test-only hardening last.
 
 ---
 
@@ -14,11 +16,11 @@ Definition of Done.** Phases are ordered so that behavior fixes land first
 
 ### 1.1 Scope & ground truth
 
-- Code: `waypoint/` (15 source files, ~34 KB), `install.ps1`, `pyproject.toml`.
-- Tests: `tests/` (9 files, 174 tests).
+- Code: `waypoint/` (15 source files, 1,077 lines), `install.ps1`, `pyproject.toml`, `scripts/check.ps1`.
+- Tests: `tests/` (9 files, 1,447 lines, 189 tests).
 - Spec: `README.md` is the sole ground truth (per `misc/INSPECTOR.md`).
 - Verification state at audit time:
-  - `python -m pytest -q` -> 174 passed
+  - `python -m pytest -q` -> 189 passed
   - `python -m ruff check .` -> All checks passed
   - `python -m mypy waypoint` -> Success: no issues found in 15 source files
 
@@ -26,12 +28,21 @@ Definition of Done.** Phases are ordered so that behavior fixes land first
 
 ```
 __main__.py -> cli.main() -> parse_args (resolver) -> dispatch (cli) -> handlers (commands/)
-                                                     |-> store (YAML I/O, atomic writes)
+                                                     |-> store (YAML I/O, atomic writes, data-dir resolution)
                                                      |-> output / prompts / clipboard (services)
                                      install.ps1 (PowerShell wrapper) <-> CLI via:
                                        stdout protocol (single existing-path line = cd),
                                        WP_FORCE_COLOR env, `_record_history` hidden command
 ```
+
+Status of the previous audit's findings (F-series, plan `d1480f6`): all 17
+resolved or deliberately kept. Verified in this audit: `_rm` exact-suffix strip
+(`removesuffix(" *")`), launcher `.cmd/.bat` shim resolution via
+`shutil.which` + `cmd /c`, no `assert`-as-control-flow remaining, store
+`home` type-checking, fsync'd atomic writes with parent mkdir, normcase no-move
+detection in `_record_origin`, slim `commands/__init__.py`, `$interactiveCmds`
+contract test, `$PROFILE`-based installer path, decoupled `scripts/check.ps1`
+gate, empty `commands/__init__.py`.
 
 Strengths (do not refactor these away):
 
@@ -39,10 +50,12 @@ Strengths (do not refactor these away):
 - Atomic writes (`tmp` + `os.replace`) for all YAML files.
 - Exit-code discipline (0 ok / 1 error / 2 usage), asserted in tests.
 - The stdout cd-protocol is tested by an invariant test
-  (`tests/test_cli.py::test_wrapper_protocol_invariant`) - a genuinely hard
+  (`tests/test_cli.py::test_wrapper_protocol_invariant`) — a genuinely hard
   contract to keep, well guarded.
-- mypy strict with zero ignores; ruff gate runs inside pytest.
-- Greedy-alias parser is small, closed-set, and exhaustively parametrized.
+- mypy strict with zero ignores.
+- Greedy-alias parser is small, closed-set, and exhaustively parametrized
+  (`tests/test_resolver.py`, 44 parse cases + 28 usage-error cases).
+- Duplicated `_set`/`_default` logic is the only real structural smell (G5).
 
 ### 1.3 Findings
 
@@ -50,308 +63,178 @@ Severity: C = critical, M = major, m = minor, N = nit.
 
 | ID | Sev | Area | Finding | Evidence | Recommendation |
 |----|-----|------|---------|----------|----------------|
-| F1 | M | README vs code | Default data dir: README says "Default: project dir (Waypoint/)" and Files tree; `data_dir()` returns `~/.waypoint` since commit b725ecc. `wp config` prints `home: C:\Users\Leonardo\.waypoint`. INSPECTOR.md (sec 4) inherits the stale expectation. | `store.py:51-62`, `README.md:134`, commit b725ecc, observed `python -m waypoint config` | Keep `~/.waypoint` (deliberate change), sync README + INSPECTOR (Phase 5) |
-| F2 | M | bookmarks.py | `_rm` lossy suffix strip: `alias.rstrip(" *")` strips ANY trailing mix of spaces/asterisks. A bookmark legitimately named `dev*` (allowed by `validate_alias`) gets deleted as `dev` when the user runs `wp rm dev*` - wrong-target deletion. Verified: `"dev*".rstrip(" *") == "dev"`. | `bookmarks.py:43-44` | Exact-suffix strip; regression test (Phase 1) |
-| F3 | M | launcher.py | `wp -vs` likely fails for standard VS Code installs: `subprocess.Popen(["code", target])`; Windows resolves only `.exe` via CreateProcess, and VS Code registers `code.cmd` on PATH -> FileNotFoundError. INSPECTOR.md:200 claims dispatch is `os.startfile`/ShellExecute - stale; code is `subprocess.Popen`. | `launcher.py:28`, `INSPECTOR.md:200-201` | Resolve via `shutil.which` + `cmd /c` for .cmd shims; verify on this machine (Phase 1) |
-| F4 | m | handlers | 7 `assert` statements used as type-narrowing / control flow. Stripped under `python -O`; then `None` flows into string ops -> TypeError. Never run with -O today, but wrong tool. | `bookmarks.py:41,87`, `config.py:25,48`, `launcher.py:22`, `nav.py:33,45` | Replace with explicit checks or typed payloads (Phase 2) |
-| F5 | m | resolver + wrapper | `_record_history` is a hidden reserved keyword / internal command between install.ps1 and the CLI. README's "closed set" of reserved words omits it; README:117 says history.yaml holds "origins of every successful wp jump" but the wrapper now records every `cd` origin (commit 35c4b48). Also: wp jumps double-record (CLI `_record_origin` + wrapper `_record_history`); dedupe hides it. | `resolver.py:14`, `install.ps1:54`, `README.md:86,117` | Document in README; add CLI tests for `_record_history` (Phase 4) |
-| F6 | m | store.py | Internal docs stale: module docstring says "two YAML data files" (manages three); `data_dir()` docstring lists a "-> project dir" fallback that no longer exists. | `store.py:1,51` | Fix docstrings (Phase 3) |
-| F7 | m | store.py | `load_config` does not type-check the `home` value: a non-string (e.g. `home: 5`) passes `load_config`, then `Path(home)` raises an uncaught TypeError in `data_dir()`. | `store.py:73-86` | Validate -> StoreError (Phase 3) |
-| F8 | m | commands/__init__.py | Package init re-exports all underscore-private handlers plus `pyperclip` "for test compatibility"; tests import privates across the package boundary (`from waypoint.commands import _nav`). Public-ish surface of private names. | `commands/__init__.py:8-44`, `tests/test_nav_commands.py:6` | Tests import from concrete modules; slim `__init__` (Phase 2) |
-| F9 | m | nav.py | No-move detection is case-sensitive string equality: `origin == target`. On Windows, a bookmark stored with different case than `os.getcwd()` records a no-move origin into history. | `nav.py:21` | `os.path.normcase` compare (Phase 1) |
-| F10 | m | install.ps1 | Interactive-command list `$interactiveCmds = @('add')` must stay hand-synced with Python-side `Prompt.ask` usage; AGENTS.md flags it, nothing enforces it. | `install.ps1:78`, `AGENTS.md` | Contract test that cross-checks the list (Phase 4) |
-| F11 | m | install.ps1 | Profile path hardcoded to `$HOME\Documents\WindowsPowerShell\...` (Windows PowerShell 5.1). Terminal is Windows Terminal; pwsh 7 users get the function in a profile their shell never loads. | `install.ps1:108` | Use the running shell's `$PROFILE` (or both) (Phase 5) |
-| F12 | N | store.py | `PROJECT_DIR = Path(__file__).resolve().parent.parent` breaks for non-editable installs (config.yaml would be written into site-packages). Safe today because install.ps1 always uses `pip install -e`. | `store.py:30` | Document the constraint; keep editable-only (Phase 5 note) |
-| F13 | N | repo | `tmp/` not in .gitignore (leftover `wp-inspect-workspace`); `misc/*` ignore means this plan doc itself is untracked. Stale untracked root data files (`waypoint.yaml` with `test_alias` residue, `history.yaml` with real paths) are leftovers from the pre-b725ecc layout. | `.gitignore`, repo root listing | Gitignore hygiene; user-confirmed cleanup (Phase 5) |
-| F14 | N | store.py | `_atomic_write` has no fsync and does not mkdir parents for the config path (save_config_home). `os.replace` semantics are fine on Windows same-volume. | `store.py:144-147` | mkdir + fsync (Phase 3) |
-| F15 | N | tests | Coverage gaps: `wp store` (kind="store") and `_record_history` have NO tests; `_ls` empty state, `_undo N > available`, `wp store <alias>` alias form untested. | grep of `tests/` | Add tests (Phases 1/4) |
-| F16 | N | conftest.py | `pytest_sessionstart` runs `ruff check .` via subprocess and aborts the suite (rc 2) if ruff is missing - test run coupled to a linter install. Deliberate ("pytest doubles as the check") but surprising for minimal venvs/CI. | `conftest.py:12-18` | Decouple into a separate gate script (Phase 6) |
-| F17 | N | resolver | `looks_like_path` ignores bare `~`: `wp add ~` is treated as alias named "~" (path-form only triggers on `/` or `\`). Edge, documented behavior today. | `resolver.py:140-142` | Optional: treat `~` as path-form (Phase 7) |
+| G1 | M | commands/config.py | `_store` truncates `~` paths: the branch `arg == "~" or arg.startswith("~/") or arg.startswith("~\\")` expands only `"~"`, dropping the subpath. `wp store ~/dev/foo` sets the store home to `C:\Users\<user>` instead of `C:\Users\<user>\dev\foo` — silent wrong-target write. Reproduced: `expanduser("~")` vs `expanduser("~/dev/foo")`. | config.py:51-52 | Collapse to `elif arg.startswith("~"): target_path = os.path.expanduser(arg)`; regression tests (Phase 1) |
+| G2 | m | commands/history.py | `_record_history_entry` dedupes with case-sensitive `!=`, while `_record_origin` (nav.py) uses `os.path.normcase`. On Windows the wrapper's `cd` path (`install.ps1` -> `_record_history`) can record duplicate origins that differ only in case; the CLI nav path does not. | history.py:23, nav.py:24 | normcase compare in `_record_history_entry` (Phase 1) |
+| G3 | m | store.py | `_atomic_write` uses a fixed tmp name (`path.name + ".tmp"`). Two concurrent writers to the same file (two `wp add` in parallel shells, or a wrapper `_record_history` racing an `undo`) can clobber each other's tmp file: the loser's open handle is orphaned by the winner's `os.replace`, then its own `os.replace` raises FileNotFoundError -> traceback. | store.py:151 | Unique tmp per write via `tempfile.mkstemp(dir=path.parent, ...)` + `os.replace` (Phase 1) |
+| G4 | m | commands/launcher.py | `_open` catches only `FileNotFoundError` from `subprocess.Popen`; any other `OSError` (access denied, etc.) escapes as a raw traceback instead of a clean error line. | launcher.py:36 | Catch `OSError` (Phase 1) |
+| G5 | m | commands/bookmarks.py | `_default` and `_set` are ~95% duplicate logic: for every non-None arg the two bodies are byte-identical (`"."` -> temp/cwd; bookmark alias -> default; path -> temp slot; else `BookmarkNotFoundError`). Only `_set`'s `arg is None` clipboard branch differs. Duplicated branch trees drift independently. | bookmarks.py:88-117 | Merge into one `_set_default(arg, console)`; keep thin wrappers (Phase 3) |
+| G6 | m | commands/history.py | `_history` displays stale (deleted-dir) entries, but `_undo` skips them. When a dead entry sits inside the 5-entry window, the displayed index `N` is NOT the `wp undo N` target — INSPECTOR.md sec 4 asserts "N stays a true undo index" (line 133). | history.py:53-61 vs 33-41 | Filter live entries in `_history` display; footer counts live entries only (Phase 2) |
+| G7 | m | resolver + bookmarks/config | Bare `~` is inconsistent across sibling commands: `wp store ~` special-cases to home; `wp add ~` parses as an alias literally named `"~"`; `wp set ~` / `wp default ~` raise `BookmarkNotFoundError`. One command family, three behaviors. (Subpath `~/x` forms already work in add/set/default via `expanduser` + `looks_like_path`.) | config.py:51, resolver.py:237-239, bookmarks.py:99,116 | Treat bare `~` as path-form in add/set/default (`looks_like_path` gains `arg == "~"`); tests + README (Phase 4) |
+| G8 | N | README vs code | `wp store <arg>` auto-creates the target directory (commit 4fab397), and a non-bookmark bare arg with no slash (e.g. `wp store foo`) silently creates `./foo` in the cwd. README:54 says only "store bookmarks at <alias> target or <path>". Undocumented side effect. | config.py:57-61 | Document in README (Phase 4) |
+| G9 | N | store.py | `data_dir()` re-reads `config.yaml` from disk on every call; each command performs >= 2 disk loads (config + bookmarks + history). Negligible for a CLI; no caching warranted. | store.py:53-64 | Keep; note only |
+| G10 | N | commands/config.py | `"null"` sentinel is special-cased in two places (`_config`, `_store`) with duplicated case-insensitive strip logic; a real directory literally named `null` can never be selected as home. Deliberate, documented design. | config.py:25,53 | Keep; hoist to a shared helper only if a third use appears |
+| G11 | N | commands/bookmarks.py | `_ls` renders paths in a rich `Table`, which truncates long paths at terminal width. history.py deliberately avoids tables for exactly this reason ("full paths must survive the 80-col pipe"). `ls` display can hide a path tail. | bookmarks.py:67-71 | Accept (cosmetic) or switch to prefixed lines like history; decide, then keep |
+| G12 | N | tests | Coverage gaps (no behavior change intended): `wp store ~`/`~/x` forms (G1 is unguarded), `_open` missing exe / missing default / `.cmd` shim branch, `_undo` with count > available, `wp store` bare-arg dir creation, concurrent `_atomic_write`, stale-entry window (G6). | grep of `tests/` | Add tests (Phases 1/2/5) |
+| G13 | N | prompts.py | `prompt_name` re-prompts on an invalid *prompted* name but raises `UsageError` (exit 2) on an invalid *explicit* alias — asymmetric UX, deliberate and tested (test_add_reserved_alias_is_usage_error). | prompts.py:34-57 | Keep; documented here |
 
 ### 1.4 Deliberate design decisions (NOT to be "fixed")
 
-- Greedy alias parsing with a closed reserved set - documented, tested, keep.
+- Greedy alias parsing with a closed reserved set (incl. the hidden
+  `_record_history` keyword; documented in README:86).
 - `temp` slot semantics (`wp default .` overwrites `temp` by design).
-- `null` literal sentinel in `config.yaml`.
+- `null` literal sentinel in `config.yaml`; `home: null` reset contract.
 - Stale history entries auto-skipped at undo time rather than pruned at write.
 - Everything on stdout, never stderr (PowerShell red-record behavior).
 - The 3-line exit-code contract (0/1/2).
+- `wp add` requires an existing target directory; only `wp store` auto-creates.
+- Editable-only install: `PROJECT_DIR` derives from `__file__` (README:212).
+- Typed command dataclasses + isinstance dispatch in `cli.dispatch` — tested,
+  exhaustive; no argparse/typer migration.
 
 ---
 
-## Part 2 — Sequential Implementation Plan
+## Part 2 — Refactoring Plan (execute in order)
 
-### Global execution rules (every phase)
+Every phase: implement, run `.\scripts\check.ps1`, commit on `dev` (never
+`master`), then update the tracking table in Part 3.
 
-1. Work on `dev` only; never commit to `master` (AGENTS.md).
-2. Every phase ends with the gates green:
-   - `python -m pytest -q` (all pass)
-   - `python -m ruff check .`
-   - `python -m mypy waypoint`
-   - If `misc/INSPECTOR.md` conformance protocol was run in the phase, `DISSONANCES.md` must be clean or the dissonances must be exactly the ones the phase intended.
-3. User-facing output stays ASCII-only (AGENTS.md "Fuckups" rule).
-4. No new dependencies. No new files outside `waypoint/`, `tests/`, `misc/`,
-   `install.ps1`, and the root docs.
-5. Each phase's tests must be added in the same phase as the code change.
-6. Never delete untracked user data without confirmation (see Phase 5).
+### Phase 1 — Correctness fixes (bugs first)
 
----
+**Goal:** land the four behavior bugs while the code is fresh; each with a
+regression test.
 
-### Phase 1 — Behavior bug fixes (semantics preserved except the listed bugs)
+1. **G1** — `commands/config.py` `_store`: replace the tilde elif-chain with
+   `elif arg.startswith("~"): target_path = os.path.expanduser(arg)`. Covers
+   `~`, `~/x`, `~\x` uniformly; `os.makedirs` behavior unchanged.
+   Tests: `wp store ~/sub` (with `WP_HOME` unset and monkeypatched
+   `PROJECT_DIR`) -> `load_config()["home"] == normpath(expanduser("~/sub"))`;
+   `wp store ~` -> home dir; `wp store ~\sub` -> backslash form.
+2. **G2** — `commands/history.py` `_record_history_entry`: compare with
+   `os.path.normcase` (mirror nav.py:21-26). Test: record `C:\Foo`, then
+   `c:\foo` (dirs must exist case-insensitively on Windows; use tmp_path) ->
+   history has one entry. Wrapper contract test still passes.
+3. **G3** — `store.py` `_atomic_write`: unique tmp file per write via
+   `tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")`,
+   write + flush + fsync through `os.fdopen`, then `os.replace(tmp_name, path)`.
+   Same-volume replace keeps atomicity. Test: a pre-existing stale
+   `waypoint.yaml.<rand>.tmp` residue does not break the next write; two
+   sequential writes to the same path both succeed.
+4. **G4** — `commands/launcher.py` `_open`: broaden `except FileNotFoundError`
+   to `except OSError` (message unchanged). Test: monkeypatch
+   `subprocess.Popen` to raise `PermissionError` -> exit `EXIT_ERROR`, no
+   traceback, error line on stdout.
 
-**Objective:** eliminate the three wrong-behavior findings before any structural
-work: wrong-target bookmark deletion (F2), broken VS Code launch (F3), spurious
-history entries from path-case mismatch (F9).
+**Definition of Done:** `.\scripts\check.ps1` green; G1-G4 each covered by a
+new test that fails on the pre-fix code.
 
-**Changes:**
+### Phase 2 — History display/undo index alignment
 
-1. `waypoint/commands/bookmarks.py` (`_rm`):
-   - Replace `alias.rstrip(" *")` with an exact-suffix rule: strip only one
-     trailing `" *"` (the `wp ls` default-marker label), i.e.
-     `alias.removesuffix(" *")` when the exact suffix is present. A bookmark
-     named `dev*` or `dev**` must never be rewritten to `dev`.
-   - Keep the copy-paste-from-`ls` convenience intact (that is its purpose).
-2. `waypoint/commands/nav.py` (`_record_origin`):
-   - Compare `origin` and `target` via `os.path.normcase(...)` so Windows path
-     case differences do not record a no-move origin.
-3. `waypoint/commands/launcher.py` (`_open`):
-   - Resolve the executable with `shutil.which`; if the resolved path ends in
-     `.cmd`/`.bat`, launch via `Popen(["cmd", "/c", resolved, target])`;
-     otherwise plain `Popen([resolved, target])`. `explorer.exe` is unaffected.
-   - Keep the FileNotFoundError -> "not found on PATH" error path.
-   - **Verify on this machine:** run `wp -vs` once with a default bookmark
-     pointing at a scratch dir inside `tmp/`; confirm exit 0 and the
-     "Opening <path> in VS Code" line, and that VS Code actually opens.
-4. Tests:
-   - `_rm` regression: seed bookmarks `dev` and `dev*`; `wp rm dev*` must
-     remove `dev*` and leave `dev`; `wp rm "dev *"` (the ls label form) must
-     still remove the default `dev`.
-   - `_record_origin` case test: bookmark stored with a different case than
-     `os.getcwd()` -> no history entry.
-   - Add missing `wp store` coverage (see F15): `wp store` (print paths),
-     `wp store <alias>` (uses bookmark path), `wp store <path>` (auto-create).
-   - Add `_ls` empty-state test (hint text, exit 0).
+**Goal:** make the printed history index a true `wp undo` index (INSPECTOR.md
+sec 4 contract) even when stale entries exist.
 
-**Definition of Done:** all gates green; the three behavior fixes have a
-regression test each; `wp -vs` verified manually on this machine.
+1. `commands/history.py` `_history`: filter `entries` to live dirs
+   (`os.path.isdir`) before windowing, reversing, and indexing. `shown` =
+   live tail of `HISTORY_PREVIEW` (or all live when `full`). Footer `(K more…)`
+   counts *live* entries outside the window — `--all` must show exactly the
+   listed set. If no live entries remain, keep the existing "No navigation
+   history yet" hint (exit 0). Empty-file case unchanged.
+2. Test: seed history `[live_a, dead, live_b, dead, live_c]` (dead = dirs
+   removed after recording) -> `wp history` lists 3 rows with indexes 1..3
+   matching `wp undo 1|2|3` targets; footer math holds when live count > 5.
+3. `_undo` itself is unchanged (already correct).
 
----
+**Definition of Done:** index-alignment test passes; check.ps1 green; no change
+to `_undo`, `_record_origin`, or the history file format.
 
-### Phase 2 — Kill `assert`-narrowing; type the `Command` payload
+### Phase 3 — De-duplicate `_set` / `_default`
 
-**Objective:** remove the 7 `assert`-as-control-flow sites (F4) by giving every
-command kind a typed payload, and slim the `commands/__init__.py` surface (F8).
+**Goal:** one implementation for the shared "set default" behavior; zero
+user-visible change.
 
-**Changes:**
+1. `commands/bookmarks.py`: add `_set_default(arg: str | None, console) -> int`
+   containing the merged body: `None` -> `_set_temp_slot(clipboard or cwd)`
+   (reachable only from `set`); `"."` -> temp slot = cwd; bookmark alias ->
+   set `b.default`; path-looking (incl. bare `~` after Phase 4) -> temp slot =
+   `abspath(expanduser(arg))`; else `raise store.BookmarkNotFoundError(arg)`.
+2. `_default(cmd)` -> `return _set_default(cmd.arg, console)`;
+   `_set(cmd)` -> `return _set_default(cmd.arg, console)`. Keep both exported
+   (cli.dispatch and `__all__` unchanged). Keep `_set_temp_slot`.
+3. No resolver or dispatch changes.
 
-1. `waypoint/resolver.py`:
-   - Replace the single `Command(kind, args: list[str | None])` with per-kind
-     dataclasses: `Nav(alias: str | None)`, `Add(alias: str | None, path: str |
-     None)`, `Rm(alias)`, `Ls`, `Default(arg)`, `Set(arg: str | None)`,
-     `ConfigHome(target: str | None)`, `Store(arg: str | None)`, `Help`,
-     `History(full: bool)`, `Undo(steps: int | None)`, `Open(kind)` (explorer /
-     code), `RecordHistory(origin: str)`.
-   - Keep a `Command` type alias (the union) so `cli.dispatch` and existing
-     callers keep working; `parse_args` returns the union.
-   - The parametrized parse matrix in `tests/test_resolver.py` locks the
-     surface - update the expected objects to the new classes; the table stays
-     the same shape so this is mechanical.
-2. Handlers (`nav.py`, `history.py`, `bookmarks.py`, `config.py`, `launcher.py`):
-   - Drop every `assert x is not None`; mypy now proves the fields. Where a
-     field is genuinely optional by design (e.g. `Add.alias`, `Set.arg`), the
-     None branch is already the prompting/fallback path - no error handling
-     changes.
-3. `cli.py` `dispatch`: switch the `cmd.kind` if-chain to isinstance dispatch
-   (or keep `kind` as a property on each class - pick one, do not keep both).
-4. `waypoint/commands/__init__.py`:
-   - Remove the private re-exports and the unused `import pyperclip`.
-   - Update tests to import from concrete modules
-     (`waypoint.commands.nav`, `waypoint.commands.bookmarks`, ...) instead of
-     the package init. Add a lint-level test that asserts
-     `waypoint.commands` exposes no underscore-prefixed names.
+**Definition of Done:** all existing set/default tests pass unmodified; a new
+test asserts `_set` and `_default` produce identical state for the same
+argument; check.ps1 green.
 
-**Definition of Done:** all gates green; `grep -n "assert" waypoint/` returns
-nothing outside tests; no test imports `_`-prefixed names from
-`waypoint.commands`.
+### Phase 4 — Bare-`~` consistency + README sync
 
----
+**Goal:** one `~` behavior across `add`/`set`/`default`/`store`; document the
+`wp store` auto-create side effect.
 
-### Phase 3 — Store-layer hardening
+1. `resolver.py`: `looks_like_path(arg)` gains `arg == "~"` (single source:
+   `return arg == "~" or any(sep in arg for sep in ("\\", "/"))`). Effect:
+   `wp add ~` -> path-form (prompts for name, bookmarks home); `wp set ~` /
+   `wp default ~` -> temp slot = home; `wp store ~` unchanged. An alias
+   literally named `~` becomes uncreatable via CLI args (still creatable via
+   the interactive prompt — accepted; the reserved set does not grow).
+2. README:
+   - `wp store <alias|path>` section: state that the target directory is
+     auto-created when missing, and that a bare non-bookmark argument creates
+     it relative to the cwd (G8).
+   - `wp add` / `wp set` / `wp default` lines: note `~` and `~/…` forms resolve
+     to the home directory / a subpath of it.
+   - Greedy-alias note: nothing changes in the reserved set.
+3. `_help` text: add the `~` forms to the `wp default` / `wp set` lines.
 
-**Objective:** make the data layer robust where the audit found holes (F6, F7,
-F14), with zero behavior change to the CLI surface.
+**Definition of Done:** `wp add ~`, `wp set ~`, `wp default ~` covered by
+tests; README + `_help` reflect G8 and the `~` behavior; check.ps1 green.
 
-**Changes** (`waypoint/store.py` + `tests/test_store.py`):
+### Phase 5 — Coverage hardening (tests only, no behavior change)
 
-1. `load_config`: validate `home` is `None` or a string; raise `StoreError`
-   otherwise (covers `home: 5` -> clear error instead of TypeError).
-2. `_atomic_write`: `path.parent.mkdir(parents=True, exist_ok=True)` before
-   writing; `flush()` + `os.fsync` the tmp file before `os.replace`.
-3. Docstrings: module header says "three YAML data files"; `data_dir()`
-   docstring states the real fallback order: `WP_HOME -> config home ->
-   ~/.waypoint` (drop the stale "-> project dir").
-4. Tests: non-string `home` raises `StoreError`; atomic write creates missing
-   parent dirs; existing round-trip tests must stay untouched and green.
+**Goal:** close the G12 gaps; any test that exposes a real defect gets fixed
+in this phase and noted.
 
-**Definition of Done:** all gates green; store tests cover the two new error
-paths; no CLI test changed in this phase.
+1. `_open`: missing default bookmark -> exit 1 + error; `shutil.which` ->
+   None -> "not found on PATH"; `.cmd` shim branch -> Popen called with
+   `["cmd", "/c", resolved, target]` (mock `shutil.which` and `Popen`).
+2. `_undo 3` with fewer than 3 live entries -> exit 1, "No navigation history
+   to undo.", no protocol hit.
+3. `wp store foo` (no slash, not a bookmark) -> creates `./foo`, config home
+   set (locks in G8 behavior).
+4. `_atomic_write` residue test if not already in Phase 1.
+5. `_ls` default-marker + empty-state assertions (partially present; complete).
 
----
+**Definition of Done:** coverage additions pass; check.ps1 green; zero source
+changes except documented defect fixes.
 
-### Phase 4 — Wrapper contract: test, document, de-risk (F5, F10)
+### Phase 6 — Final verification & docs (last)
 
-**Objective:** make the install.ps1 <-> CLI coupling explicit and drift-proof.
-No protocol change - the `_record_history` command and `WP_FORCE_COLOR` env
-stay (they work); they become tested and documented.
+**Goal:** close the loop; leave the repo green and the spec accurate.
 
-**Changes:**
+1. Full `.\scripts\check.ps1` run on a clean tree; record results.
+2. Re-read `README.md` and `misc/INSPECTOR.md` against the shipped behavior:
+   - Phase 2 makes INSPECTOR sec 4's "true undo index" claim accurate — verify,
+     do not edit unless a mismatch appears.
+   - README "Files" tree must match reality (nothing is expected to move).
+3. Update Part 3 tracking table with commit hashes and phase status.
+4. Commit any docs drift on `dev`.
 
-1. Tests (`tests/test_wrapper_contract.py`):
-   - `_record_history` CLI tests: records a valid dir; ignores a non-dir;
-     dedupes consecutive identical origins; `wp _record_history` with no arg is
-     a usage error (exit 2); the command never prints a bare-path line (cd
-     protocol safe).
-   - Parse `install.ps1` text in a test and assert its `$interactiveCmds` list
-     equals the set of command kinds whose handlers reach `Prompt.ask`
-     (today: exactly `add`). Drift in either direction fails the suite.
-2. `waypoint/resolver.py`: keep `_record_history` in RESERVED (it must stay
-   un-usable as a bookmark name); no code change.
-3. `README.md` (docs only, full sync is Phase 5 - do the history-semantics
-   lines here so Phase 5 is pure consistency): document `_record_history` as an
-   internal wrapper command and correct line 117's claim that history.yaml
-   holds only wp-jump origins (it holds every cd origin; wp jumps and plain
-   `cd` both feed it, deduped).
-4. Note in the phase log the double-record path (CLI `_record_origin` + wrapper
-   `_record_history` for the same wp jump) as accepted, dedupe-protected
-   behavior - do not "fix" it.
-
-**Definition of Done:** all gates green; `test_wrapper_contract.py` passes;
-README history semantics corrected.
+**Definition of Done:** check.ps1 green; INSPECTOR/README verified consistent;
+tracking table complete; no open findings from Part 1 (all G-IDs resolved or
+explicitly marked `keep`).
 
 ---
 
-### Phase 5 — Spec sync (README is the spec) & repo hygiene
+## Part 3 — Phase tracking
 
-**Objective:** README.md and misc/INSPECTOR.md describe the actual system
-(F1, F11, F12, F13). This phase must come after the behavior phases so the docs
-describe the post-refactor truth.
+| Phase | Content | Status | Commit |
+|-------|---------|--------|--------|
+| 1 | Correctness fixes (G1-G4) | pending | — |
+| 2 | History/undo index alignment (G6) | pending | — |
+| 3 | `_set`/`_default` merge (G5) | pending | — |
+| 4 | Bare-`~` consistency + README (G7, G8) | pending | — |
+| 5 | Coverage hardening (G12) | pending | — |
+| 6 | Final verification & docs | pending | — |
 
-**Changes:**
-
-1. `README.md`:
-   - Data section: default storage dir is `~/.waypoint` (not project dir);
-     "three YAML files" (config.yaml lives in the project dir, waypoint.yaml +
-     history.yaml live in the data dir).
-   - Reserved keywords: add `_record_history` (internal) to the list; adjust
-     the "closed set" claim to "closed user-facing set plus one internal
-     command".
-   - Files tree: match reality (add `misc/REFACTORING_PLAN.md`, the
-     `tmp/`-scratch note, and the new test files).
-   - Notes: editable-install-only constraint for `PROJECT_DIR` (F12).
-2. `misc/INSPECTOR.md`:
-   - Fix the os.startfile claim in the "Open locations" section (dispatch is
-     `subprocess.Popen`; the PATH-shim note is still valid - a shim is never
-     invoked, which is why `code.cmd` needs the Phase 1 resolution fix).
-   - Fix the Configure-section expectation: default location is `~/.waypoint`.
-3. `install.ps1` (F11): target the running shell's profile: use
-   `$PROFILE.CurrentUserAllHosts` or detect pwsh vs WindowsPowerShell and write
-   to the matching profile; keep the marker-block replace logic.
-4. Hygiene (F13):
-   - `.gitignore`: add `tmp/`; decide the `misc/` exception - recommend
-     `!misc/INSPECTOR.md` + `!misc/REFACTORING_PLAN.md` so both protocol and
-     plan are tracked (ask the user; this is a repo-policy choice).
-   - Stale root data files (`waypoint.yaml` with `test_alias` residue,
-     `history.yaml`, `config.yaml`): **user confirmation required before
-     deletion** (they are untracked user data). Recommend: archive under
-     `tmp/` first, then delete after one week of normal use.
-
-**Definition of Done:** README and INSPECTOR contain no statement contradicted
-by the code; the INSPECTOR Configure + Open sections match observed behavior;
-gitignore hygiene committed; user decision on data files recorded.
-
----
-
-### Phase 6 — Quality-gate decoupling (F16)
-
-**Objective:** `pytest` runs tests; lint runs lint.
-
-**Changes:**
-
-1. `tests/conftest.py`: remove `pytest_sessionstart` ruff gate.
-2. Add `scripts/check.ps1` (or `check.py`) that runs, in order: ruff, mypy,
-   pytest. README install/develop section points at it.
-3. Optional (ask the user): add a minimal GitHub Actions workflow running
-   `scripts/check` on Python 3.10-3.13, Windows + Ubuntu. If the project
-   prefers no CI, skip.
-
-**Definition of Done:** `pytest -q` passes in a venv without ruff installed;
-`scripts/check` passes everywhere; README documents the check entry point.
-
----
-
-### Phase 7 — Stretch backlog (optional; only if the user opts in)
-
-Each item is independent; execute in listed order if selected:
-
-1. `looks_like_path`: treat bare `~` as path-form so `wp add ~` and
-   `wp set ~` behave like paths (F17).
-2. `Bookmarks` paths as `Path` objects internally (normalize at the store
-   boundary) - larger blast radius, only if the string-path ergonomics ever
-   hurt.
-3. `wp help` parity test: assert every reserved keyword appears in help output
-   (guards the "closed set" doc claim mechanically).
-4. `prompt_name` loop simplification: hoist the explicit-alias error path out
-   of the while loop.
-
----
-
-## Part 3 — Execution checklist (per phase)
-
-1. `git checkout dev && git pull` (confirm clean tree).
-2. Read this phase's section again; implement changes + tests together.
-3. Run gates: `python -m pytest -q`, `python -m ruff check .`,
-   `python -m mypy waypoint`.
-4. If the phase touches the wrapper (4) or launcher (1), run the manual
-   verification steps listed there.
-5. Commit on `dev` with a message naming the phase
-   (`refactor(phase N): <summary>`).
-6. Tick the phase off in this file's phase log (below).
-
-## Phase log
-
-| Phase | Status | Date | Notes |
-|-------|--------|------|-------|
-| 1 Behavior bug fixes | complete | 2026-08-04 | Fixed F2 (_rm removesuffix), F3 (launcher shutil.which), F9 (normcase history), added regression tests |
-| 2 Typed Command payloads | complete | 2026-08-04 | Replaced Command(kind, args) with dataclass union, eliminated 7 assert statements, slimmed commands package init |
-| 3 Store hardening | complete | 2026-08-04 | Added home type check, fsync atomic write, parent mkdir, and updated store docstrings |
-| 4 Wrapper contract | complete | 2026-08-04 | Added test_wrapper_contract.py (_record_history + $interactiveCmds sync), updated README history docs |
-| 5 Spec sync & hygiene | complete | 2026-08-04 | Synced README + INSPECTOR to post-refactor truth, updated install.ps1 profile resolution, gitignore hygiene. F13 data files: user confirmed deletion 2026-08-04 -- stale root waypoint.yaml/history.yaml/config.yaml removed (config held `home: null`, so data_dir resolution unchanged) |
-| 6 Gate decoupling | complete | 2026-08-04 | Removed pytest_sessionstart ruff gate, added scripts/check.ps1, updated README |
-| 7 Stretch backlog | pending | optional |
-
-## Part 4 — Open questions register (decisions required)
-
-Every phase-gating decision below is genuinely contested; the plan runs with
-the marked default until the owner decides. Answering a question updates the
-default in the affected phase(s). Do not silently re-decide an answered row.
-
-| ID | Question | Options | Plan default | Gates | Status |
-|----|----------|---------|--------------|-------|--------|
-| Q1 | Default data dir: is `~/.waypoint` (code since b725ecc) intended, or should code revert to README's project dir? | a) docs -> code b) code -> README c) platformdirs-style location | a | Phase 5 (F1) | open |
-| Q2 | History semantics: should every `cd` feed history.yaml (current) or only wp jumps (README claim)? | a) document current b) wrapper stops persisting cds | a | Phase 4 (F5) | open |
-| Q3 | Scope: may the refactor change behavior (Phase 1 fixes) or must it be behavior-neutral? | a) fixes in-plan b) fixes as separate change set | a | Phase 1 | open |
-| Q4 | Command typing: per-kind dataclasses vs minimal explicit None-checks | a) dataclass union b) keep kind+args | a | Phase 2 (F4) | open |
-| Q5 | pytest-as-gate: keep ruff inside pytest sessionstart (deliberate) or decouple? | a) decouple b) keep | a | Phase 6 (F16) | open |
-| Q6 | `wp rm "dev *"` convenience: keep (exact suffix), drop, or error-with-hint? | a) keep b) drop c) hint | a | Phase 1 (F2) | open |
-| Q7 | `misc/*` gitignore: track plan + INSPECTOR or keep misc as scratch? | a) track both b) keep ignored | a | Phase 5 (F13) | open |
-| Q8 | INSPECTOR conformance re-runs: after Phases 1 + 5, after every phase, or once at the end? | a) after 1 + 5 b) every phase c) once at end | a | All | open |
-| Q9 | CI: add a minimal GitHub Actions check workflow? | a) no CI b) yes | a | Phase 6 | open |
-
-### How to answer
-
-State the ID and the chosen option (e.g. "Q4 -> b"). The plan owner updates the
-row (Status: decided, note the option) and amends the affected phase's Changes
-section before executing it. Questions that stay open at a phase boundary are
-executed with the plan default, and the phase log records that the default was
-used.
-
+Findings disposition: G1-G4 fix in Phase 1; G6 in Phase 2; G5 in Phase 3;
+G7-G8 in Phase 4; G12 in Phase 5; G9-G11, G13 keep (documented rationale in
+1.3/1.4).

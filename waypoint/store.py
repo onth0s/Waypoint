@@ -148,12 +148,21 @@ def save_bookmarks(b: Bookmarks) -> None:
 
 def _atomic_write(path: Path, payload: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.write(payload)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, path)
+    import tempfile
+
+    fd, tmp_path_str = tempfile.mkstemp(
+        dir=path.parent, prefix=path.name + ".", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(payload)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path_str, path)
+    except Exception:
+        if os.path.exists(tmp_path_str):
+            os.unlink(tmp_path_str)
+        raise
 
 
 def load_history() -> list[str]:

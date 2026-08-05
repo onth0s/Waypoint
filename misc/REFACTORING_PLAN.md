@@ -127,20 +127,23 @@ regression test.
 **Definition of Done:** `.\scripts\check.ps1` green; G1-G4 each covered by a
 new test that fails on the pre-fix code.
 
-### Phase 2 — History display/undo index alignment
+### Phase 2 — History display/undo index alignment & `wp h N` alias
 
 **Goal:** make the printed history index a true `wp undo` index (INSPECTOR.md
-sec 4 contract) even when stale entries exist.
+sec 4 contract) even when stale entries exist, and allow `wp h N` / `wp history N`
+as a convenient shorthand alias for `wp undo N`.
 
-1. `commands/history.py` `_history`: filter `entries` to live dirs
+1. `resolver.py`: update `_parse_history` so if `rest` is a single positive integer $N$,
+   it returns `UndoCmd(steps=int(N))`.
+2. `commands/history.py` `_history`: filter `entries` to live dirs
    (`os.path.isdir`) before windowing, reversing, and indexing. `shown` =
    live tail of `HISTORY_PREVIEW` (or all live when `full`). Footer `(K more…)`
    counts *live* entries outside the window — `--all` must show exactly the
    listed set. If no live entries remain, keep the existing "No navigation
    history yet" hint (exit 0). Empty-file case unchanged.
-2. Test: seed history `[live_a, dead, live_b, dead, live_c]` (dead = dirs
+3. Test: seed history `[live_a, dead, live_b, dead, live_c]` (dead = dirs
    removed after recording) -> `wp history` lists 3 rows with indexes 1..3
-   matching `wp undo 1|2|3` targets; footer math holds when live count > 5.
+   matching `wp undo 1|2|3` (and `wp h 1|2|3`) targets; footer math holds when live count > 5.
 3. `_undo` itself is unchanged (already correct).
 
 **Definition of Done:** index-alignment test passes; check.ps1 green; no change

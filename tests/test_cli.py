@@ -774,3 +774,48 @@ def test_store_path_creates_and_sets_config_home(monkeypatch, tmp_path, capsys):
     assert target.is_dir()
     assert store.load_config()["home"] == str(target)
 
+
+def test_g1_store_tilde_subpath(monkeypatch, tmp_path, capsys):
+    fake_home = tmp_path / "fake_home"
+    sub_dir = fake_home / "dev" / "foo"
+    monkeypatch.setenv("USERPROFILE", str(fake_home))
+    monkeypatch.setenv("HOME", str(fake_home))
+    rc = _run(monkeypatch, tmp_path, ["store", "~/dev/foo"])
+    capsys.readouterr()
+    assert rc == 0
+    assert sub_dir.is_dir()
+    assert store.load_config()["home"] == os.path.normpath(str(sub_dir))
+
+
+def test_g2_history_case_dedup(monkeypatch, tmp_path):
+    dir_a = tmp_path / "Target"
+    dir_a.mkdir()
+    _run(monkeypatch, tmp_path, ["_record_history", str(dir_a)])
+    _run(monkeypatch, tmp_path, ["_record_history", str(dir_a).lower()])
+    entries = store.load_history()
+    assert len(entries) == 1
+
+
+def test_g3_atomic_write_concurrency_resilience(tmp_path):
+    p = tmp_path / "test.yaml"
+    store._atomic_write(p, "data1")
+    assert p.read_text(encoding="utf-8") == "data1"
+    store._atomic_write(p, "data2")
+    assert p.read_text(encoding="utf-8") == "data2"
+
+
+def test_g4_open_oserror_clean_line(monkeypatch, tmp_path, capsys):
+    target = _add_dev(monkeypatch, tmp_path)
+    _run(monkeypatch, tmp_path, ["add", "dev", str(target)])
+    capsys.readouterr()
+
+    def mock_popen(*args, **kwargs):
+        raise PermissionError("Access denied")
+
+    monkeypatch.setattr(subprocess, "Popen", mock_popen)
+    rc = _run(monkeypatch, tmp_path, ["."])
+    out = capsys.readouterr()
+    assert rc == 1
+    assert "Explorer not found on PATH." in out.out
+
+

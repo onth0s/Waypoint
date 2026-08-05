@@ -48,8 +48,8 @@ def _store(cmd: StoreCmd, console: Console) -> int:
     b = store.load_bookmarks()
     if arg in b.bookmarks:
         target_path = b.bookmarks[arg]
-    elif arg == "~" or arg.startswith("~/") or arg.startswith("~\\"):
-        target_path = os.path.expanduser("~")
+    elif arg.startswith("~"):
+        target_path = os.path.expanduser(arg)
     elif arg.strip().lower() == "null":
         store.save_config_home(None)
         ok(console, "Store home set to default (project dir)")

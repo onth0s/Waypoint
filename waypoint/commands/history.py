@@ -20,7 +20,7 @@ def _record_history_entry(cmd: RecordHistoryCmd) -> int:
     origin = cmd.origin
     if origin and os.path.isdir(origin):
         entries = store.load_history()
-        if not entries or entries[-1] != origin:
+        if not entries or os.path.normcase(entries[-1]) != os.path.normcase(origin):
             store.save_history(entries + [origin])
     return EXIT_OK
 

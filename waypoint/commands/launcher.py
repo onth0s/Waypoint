@@ -33,7 +33,7 @@ def _open(kind: str, console: Console) -> int:
             subprocess.Popen(["cmd", "/c", resolved, target])
         else:
             subprocess.Popen([resolved, target])
-    except FileNotFoundError:
+    except OSError:
         err(console, f"{app} not found on PATH.")
         return EXIT_ERROR
     console.print(f"[cyan]Opening[/cyan] {target} in {app}", soft_wrap=True)

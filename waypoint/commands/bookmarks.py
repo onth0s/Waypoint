@@ -85,23 +85,7 @@ def _set_temp_slot(target: str, b: store.Bookmarks, console: Console) -> int:
     return EXIT_OK
 
 
-def _default(cmd: DefaultCmd, console: Console) -> int:
-    arg = cmd.arg
-    b = store.load_bookmarks()
-    if arg == ".":
-        return _set_temp_slot(os.getcwd(), b, console)
-    if arg in b.bookmarks:
-        b.default = arg
-        store.save_bookmarks(b)
-        ok(console, f"Default is now {arg}")
-        return EXIT_OK
-    if looks_like_path(arg):
-        return _set_temp_slot(os.path.abspath(os.path.expanduser(arg)), b, console)
-    raise store.BookmarkNotFoundError(arg)
-
-
-def _set(cmd: SetCmd, console: Console) -> int:
-    arg = cmd.arg
+def _set_default(arg: str | None, console: Console) -> int:
     b = store.load_bookmarks()
     if arg == ".":
         return _set_temp_slot(os.getcwd(), b, console)
@@ -115,3 +99,11 @@ def _set(cmd: SetCmd, console: Console) -> int:
     if looks_like_path(arg):
         return _set_temp_slot(os.path.abspath(os.path.expanduser(arg)), b, console)
     raise store.BookmarkNotFoundError(arg)
+
+
+def _default(cmd: DefaultCmd, console: Console) -> int:
+    return _set_default(cmd.arg, console)
+
+
+def _set(cmd: SetCmd, console: Console) -> int:
+    return _set_default(cmd.arg, console)

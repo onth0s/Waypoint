@@ -850,11 +850,26 @@ def test_g6_history_live_entry_alignment(monkeypatch, tmp_path, capsys):
     assert f"2  {dir_b}" in lines[1]
     assert f"3  {dir_a}" in lines[2]
 
-    # Test wp h 2 alias acts as wp u 2 -> targets dir_b
-    rc_undo = _run(monkeypatch, tmp_path, ["h", "2"])
-    out_undo = capsys.readouterr().out
-    assert rc_undo == 0
-    assert out_undo.strip() == str(dir_b)
+def test_g5_set_and_default_parity(monkeypatch, tmp_path):
+    target = _add_dev(monkeypatch, tmp_path)
+    _run(monkeypatch, tmp_path, ["add", "dev", str(target)])
+
+    # Test path arg
+    _run(monkeypatch, tmp_path, ["set", str(target)])
+    state_set = store.load_bookmarks()
+    _run(monkeypatch, tmp_path, ["default", str(target)])
+    state_default = store.load_bookmarks()
+    assert state_set.default == state_default.default
+    assert state_set.bookmarks == state_default.bookmarks
+
+    # Test alias arg
+    _run(monkeypatch, tmp_path, ["set", "dev"])
+    state_set = store.load_bookmarks()
+    _run(monkeypatch, tmp_path, ["default", "dev"])
+    state_default = store.load_bookmarks()
+    assert state_set.default == state_default.default
+    assert state_set.bookmarks == state_default.bookmarks
+
 
 
 

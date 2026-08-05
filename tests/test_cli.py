@@ -898,6 +898,42 @@ def test_g7_bare_tilde_handling(monkeypatch, tmp_path, capsys):
     assert b.bookmarks["myhome"] == os.path.normpath(str(fake_home))
 
 
+def test_phase5_coverage_hardening(monkeypatch, tmp_path, capsys):
+    # 1. _open with missing exe
+    target = _add_dev(monkeypatch, tmp_path)
+    _run(monkeypatch, tmp_path, ["add", "dev", str(target)])
+    capsys.readouterr()
+    monkeypatch.setattr("shutil.which", lambda exe: None)
+    rc = _run(monkeypatch, tmp_path, ["-vs"])
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "VS Code not found on PATH." in out
+
+    # 2. _undo with step > available live entries
+    _run(monkeypatch, tmp_path, ["_record_history", str(target)])
+    rc = _run(monkeypatch, tmp_path, ["undo", "10"])
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "No navigation history to undo." in out
+
+    # 3. wp store foo (bare non-bookmark arg creates ./foo)
+    target_store = tmp_path / "nonexistent_store_dir"
+    rc = _run(monkeypatch, tmp_path, ["store", str(target_store)])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert target_store.is_dir()
+
+    # 4. _ls default marker verification
+    _run(monkeypatch, tmp_path, ["default", "dev"])
+    capsys.readouterr()
+    rc = _run(monkeypatch, tmp_path, ["ls"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "*" in out
+    assert "dev" in out
+
+
+
 
 
 

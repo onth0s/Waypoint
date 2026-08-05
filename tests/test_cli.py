@@ -933,6 +933,17 @@ def test_phase5_coverage_hardening(monkeypatch, tmp_path, capsys):
     assert "dev" in out
 
 
+def test_ok_output_escapes_paths(monkeypatch, tmp_path, capsys):
+    target = tmp_path / "C:"
+    target.mkdir(exist_ok=True)
+    rc = _run(monkeypatch, tmp_path, ["set", str(target)])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Default is now temp ->" in out
+    assert "[/bold green]" not in out
+
+
+
 
 
 

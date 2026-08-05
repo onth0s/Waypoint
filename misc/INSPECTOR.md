@@ -254,7 +254,7 @@ Severity:
 
 ## 7. Recording: DISSONANCES.md
 
-The protocol writes `DISSONANCES.md` in the repo root. Structure:
+The protocol writes `DISSONANCES.md` to misc/. Structure:
 
 ```markdown
 # DISSONANCES.md — CLI vs README.md

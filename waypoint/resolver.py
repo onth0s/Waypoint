@@ -196,12 +196,17 @@ FULL_FLAGS = ("--full", "--all", "full", "all", "f", "a")
 
 
 def _parse_history(rest: list[str]) -> Command:
-    """`wp history` shows the default window; a full flag shows the whole stack."""
+    """`wp history` shows default window; `--full` shows whole stack.
+    `wp h N` acts as `wp undo N`.
+    """
     if not rest:
         return HistoryCmd(full=False)
-    if len(rest) == 1 and rest[0] in FULL_FLAGS:
-        return HistoryCmd(full=True)
-    raise UsageError("usage: wp history [--full|--all|full|all|f|a]")
+    if len(rest) == 1:
+        if rest[0] in FULL_FLAGS:
+            return HistoryCmd(full=True)
+        if rest[0].isdigit() and int(rest[0]) >= 1:
+            return UndoCmd(steps=int(rest[0]))
+    raise UsageError("usage: wp history [--full|--all|full|all|f|a|[N]]")
 
 
 def _parse_undo(rest: list[str]) -> Command:

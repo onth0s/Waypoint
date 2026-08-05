@@ -385,7 +385,11 @@ def test_history_default_window_and_full(monkeypatch, tmp_path, capsys):
 
     monkeypatch.setenv("WP_HOME", str(tmp_path / "data"))
     monkeypatch.setattr(store, "PROJECT_DIR", tmp_path)
-    entries = [str(tmp_path / f"d{i}") for i in range(7)]
+    entries = []
+    for i in range(7):
+        d = tmp_path / f"d{i}"
+        d.mkdir()
+        entries.append(str(d))
     store.save_history(entries)
 
     rc = _run(monkeypatch, tmp_path, ["h"])
@@ -414,7 +418,9 @@ def test_history_default_window_and_full(monkeypatch, tmp_path, capsys):
 def test_history_full_flag_forms(monkeypatch, tmp_path, capsys):
     monkeypatch.setenv("WP_HOME", str(tmp_path / "data"))
     monkeypatch.setattr(store, "PROJECT_DIR", tmp_path)
-    store.save_history([str(tmp_path / "only")])
+    only_dir = tmp_path / "only"
+    only_dir.mkdir()
+    store.save_history([str(only_dir)])
     for argv in (["h", "f"], ["h", "a"], ["h", "full"], ["history", "all"]):
         rc = _run(monkeypatch, tmp_path, argv)
         out = capsys.readouterr()
@@ -817,5 +823,38 @@ def test_g4_open_oserror_clean_line(monkeypatch, tmp_path, capsys):
     out = capsys.readouterr()
     assert rc == 1
     assert "Explorer not found on PATH." in out.out
+
+
+def test_g6_history_live_entry_alignment(monkeypatch, tmp_path, capsys):
+    dir_a = tmp_path / "a"
+    dir_b = tmp_path / "b"
+    dir_c = tmp_path / "c"
+    dir_dead = tmp_path / "dead"
+    for d in (dir_a, dir_b, dir_c, dir_dead):
+        d.mkdir()
+
+    _run(monkeypatch, tmp_path, ["_record_history", str(dir_a)])
+    _run(monkeypatch, tmp_path, ["_record_history", str(dir_dead)])
+    _run(monkeypatch, tmp_path, ["_record_history", str(dir_b)])
+    _run(monkeypatch, tmp_path, ["_record_history", str(dir_c)])
+
+    # Delete dir_dead
+    dir_dead.rmdir()
+
+    rc = _run(monkeypatch, tmp_path, ["h"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    lines = [line.strip() for line in out.splitlines() if line.strip()]
+    assert len(lines) == 3
+    assert f"1  {dir_c}" in lines[0]
+    assert f"2  {dir_b}" in lines[1]
+    assert f"3  {dir_a}" in lines[2]
+
+    # Test wp h 2 alias acts as wp u 2 -> targets dir_b
+    rc_undo = _run(monkeypatch, tmp_path, ["h", "2"])
+    out_undo = capsys.readouterr().out
+    assert rc_undo == 0
+    assert out_undo.strip() == str(dir_b)
+
 
 

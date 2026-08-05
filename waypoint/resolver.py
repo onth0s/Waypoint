@@ -240,8 +240,8 @@ def _parse_add(rest: list[str]) -> Command:
 
 
 def looks_like_path(arg: str) -> bool:
-    """Single-arg `wp add C:/x` means 'bookmark this path', not 'alias named C:/x'."""
-    return any(sep in arg for sep in ("\\", "/"))
+    """Single-arg `wp add C:/x` or `wp add ~` means 'bookmark this path', not 'alias named C:/x'."""
+    return arg == "~" or any(sep in arg for sep in ("\\", "/"))
 
 
 def _require(rest: list[str], count: int, message: str) -> None:

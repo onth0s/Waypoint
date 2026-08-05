@@ -41,17 +41,17 @@ wp add <alias> <path>   → bookmark <path> as <alias>
 wp add .                → bookmark current dir (shorthand, same as bare `wp add`)
 wp rm <alias>           → delete a bookmark
 wp ls, wp list           → list all bookmarks
-wp set [alias|path]     → set default (clipboard → cwd → temp slot)
+wp set [alias|path|~]   → set default (clipboard → cwd → temp slot; `~` resolves to home)
 wp default <alias>      → set the default bookmark
 wp default .            → point the default at the current directory (temp slot)
-wp default <path>       → point the default at an arbitrary directory (temp slot)
+wp default <path|~>     → point the default at an arbitrary directory or home (temp slot)
 ```
 
 ### Configure
 
 ```
 wp store                 → show where bookmarks are stored
-wp store <alias|path>    → store bookmarks at <alias> target or <path>
+wp store <alias|path|~>  → store bookmarks at <alias> target or <path> (auto-creates directory if missing)
 wp config                → show where bookmarks are stored
 wp config home <path>    → store bookmarks at <path>
 wp config home null      → reset to the default location

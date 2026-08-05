@@ -871,5 +871,33 @@ def test_g5_set_and_default_parity(monkeypatch, tmp_path):
     assert state_set.bookmarks == state_default.bookmarks
 
 
+def test_g7_bare_tilde_handling(monkeypatch, tmp_path, capsys):
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    monkeypatch.setenv("USERPROFILE", str(fake_home))
+    monkeypatch.setenv("HOME", str(fake_home))
+
+    # wp set ~
+    _run(monkeypatch, tmp_path, ["set", "~"])
+    b = store.load_bookmarks()
+    assert b.default == "temp"
+    assert b.bookmarks["temp"] == os.path.normpath(str(fake_home))
+
+    # wp default ~
+    _run(monkeypatch, tmp_path, ["default", "~"])
+    b = store.load_bookmarks()
+    assert b.default == "temp"
+    assert b.bookmarks["temp"] == os.path.normpath(str(fake_home))
+
+    # wp add ~ (with explicit prompt input)
+    monkeypatch.setattr("builtins.input", lambda *a, **k: "myhome")
+    rc = _run(monkeypatch, tmp_path, ["add", "~"])
+    capsys.readouterr()
+    assert rc == 0
+    b = store.load_bookmarks()
+    assert b.bookmarks["myhome"] == os.path.normpath(str(fake_home))
+
+
+
 
 

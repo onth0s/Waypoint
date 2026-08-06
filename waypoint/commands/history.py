@@ -31,25 +31,28 @@ def _get_live_entries(raw_entries: list[str]) -> list[tuple[int, str]]:
 
 
 def _undo(cmd: UndoCmd, console: Console) -> int:
-    """Pop N navigation origins (stale entries auto-skipped) and print the target."""
+    """Jump to history row N (0 = current dir). Rows newer than the target are
+    pruned (unless it's a no-move jump to the current dir, which must keep it)."""
     count = cmd.steps
     entries = store.load_history()
     live = _get_live_entries(entries)
-    if not live or count > len(live):
+    if not live or count > len(live) - 1:
         err(console, "No navigation history to undo.")
         hint(console, "Navigate somewhere with [bold]wp <alias>[/bold] first.")
         return EXIT_ERROR
 
-    # live is ordered oldest -> newest. Undo step 1 is the last item in live.
-    target_idx, target_path = live[-count]
-    # Prune history up to the target entry's raw index
-    store.save_history(entries[:target_idx])
+    # live is ordered oldest -> newest. Row 0 is the newest entry (current dir),
+    # row N is live[-(N+1)].
+    target_idx, target_path = live[-(count + 1)]
+    if os.path.normcase(target_path) != os.path.normcase(os.getcwd()):
+        # Prune history up to the target entry's raw index (stale entries skipped)
+        store.save_history(entries[:target_idx])
     sys.stdout.write(target_path + "\n")
     return EXIT_OK
 
 
 def _history(cmd: HistoryCmd, console: Console) -> int:
-    """Show the undo stack, newest first (index N = `wp undo N`)."""
+    """Show the recent-directories stack, newest first (row N = `wp undo N`)."""
     raw_entries = store.load_history()
     live = _get_live_entries(raw_entries)
     if not live:
@@ -57,13 +60,16 @@ def _history(cmd: HistoryCmd, console: Console) -> int:
         return EXIT_OK
     live_paths = [p for _, p in live]
     if cmd.count is not None:
-        shown = live_paths if cmd.count >= len(live_paths) else live_paths[-cmd.count:]
+        if cmd.count == 0:
+            shown = live_paths[-1:]
+        else:
+            shown = live_paths if cmd.count >= len(live_paths) else live_paths[-cmd.count:]
     elif cmd.full:
         shown = live_paths
     else:
         shown = live_paths[-HISTORY_PREVIEW:]
-    # Indexed lines, newest first: 1 = live_paths[-1], 2 = live_paths[-2]...
-    for i, path in enumerate(reversed(shown), start=1):
+    # Indexed lines, newest first: 0 = live_paths[-1] (current dir), 1 = previous...
+    for i, path in enumerate(reversed(shown)):
         console.print(f"{i}  {path}", soft_wrap=True)
     hidden = len(live_paths) - len(shown)
     if hidden > 0:

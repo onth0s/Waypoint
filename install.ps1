@@ -21,15 +21,19 @@ if ($LASTEXITCODE -ne 0) {
 # existing path (the navigation protocol).
 $MarkerStart = "# Waypoint - path bookmark CLI (ASCII only: profiles may not be UTF-8)"
 $MarkerEnd = "# End Waypoint block"
+# Legacy blocks say "(file saved as UTF-8)" instead of the current ASCII-only
+# text. Detection/replacement must match any variant, so use the shared prefix.
+$MarkerAny = "# Waypoint - path bookmark CLI ("
 $Block = @"
 
 $MarkerStart
-# Session history shared by `cd` and `wp` jumps. `cd -` toggles to the previous
-# location; `wp undo` / `wp history` use the CLI's persistent stack instead.
+# Session history shared by `cd`, `cd..` / `cd~` / `cd\` and `wp` jumps.
+# `cd -` toggles to the previous location; `wp undo` / `wp history` use the
+# CLI's persistent stack instead.
 `$global:WpHistory = [System.Collections.Generic.List[string]]::new()
 `$global:WpMaxHistory = 50
 
-function Set-WaypointLocation {
+function global:Set-WaypointLocation {
     param(
         [switch]`$Literal,
         [Parameter(ValueFromRemainingArguments=`$true)]
@@ -51,7 +55,11 @@ function Set-WaypointLocation {
     }
     `$current = (Get-Location).Path
     if (`$current -ne `$before) {
+        # Track both the dir we left and the dir we arrived at (each deduped),
+        # so the newest persistent history entry is always the current dir.
+        # A fresh tab can then `wp h` / `wp u 0` to land where the last tab was.
         & python "$RepoDir\waypoint\__main__.py" _record_history `$before > `$null 2>&1
+        & python "$RepoDir\waypoint\__main__.py" _record_history `$current > `$null 2>&1
         if (`$global:WpHistory.Count -eq 0 -or `$global:WpHistory[`$global:WpHistory.Count - 1] -ne `$before) {
             `$global:WpHistory.Add(`$before)
         }
@@ -67,11 +75,18 @@ function Set-WaypointLocation {
 Set-Alias -Name cd -Value Set-WaypointLocation -Option AllScope -Scope Global -Force
 Set-Alias -Name chdir -Value Set-WaypointLocation -Option AllScope -Scope Global -Force
 
-function cdh {
+# The no-space shortcuts (cd.., cd~, cd\) are single tokens that PowerShell
+# resolves to native Set-Location, bypassing the cd alias. Define same-named
+# functions so they route through Set-WaypointLocation and feed history too.
+function global:cd.. { Set-WaypointLocation .. }
+function global:cd~ { Set-WaypointLocation ~ }
+function global:cd\ { Set-WaypointLocation \ }
+
+function global:cdh {
     `$global:WpHistory
 }
 
-function wp {
+function global:wp {
     `$env:WP_FORCE_COLOR = if ([Environment]::UserInteractive) { "1" } else { "0" }
     # Commands that perform interactive rich prompts (Prompt.ask). Capturing stdout via @()
     # would buffer stdout on the pipe, causing invisible prompts. Run live.
@@ -105,9 +120,30 @@ $MarkerEnd
 
 "@
 
-$ProfilePath = if ($PROFILE.CurrentUserAllHosts) { $PROFILE.CurrentUserAllHosts } else { "$PROFILE" }
+# Prefer the profile that ALREADY holds a Waypoint block: install.ps1 may be
+# run from a shell whose $PROFILE chain dot-sources another profile (e.g. pwsh
+# -> WindowsPowerShell). Writing a second block elsewhere would be silently
+# shadowed by the dot-sourced old one, so find and replace it in place first.
+$KnownProfiles = @(
+    "$HOME\Documents\WindowsPowerShell\profile.ps1",
+    "$HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1",
+    "$HOME\Documents\PowerShell\profile.ps1",
+    "$HOME\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
+)
+$ProfilePath = $null
+foreach ($Candidate in $KnownProfiles) {
+    if ((Test-Path -LiteralPath $Candidate) -and
+        (Get-Content -LiteralPath $Candidate -Raw -ErrorAction SilentlyContinue) -match [regex]::Escape($MarkerAny)) {
+        $ProfilePath = $Candidate
+        break
+    }
+}
 if (-not $ProfilePath) {
-    $ProfilePath = "$HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"
+    # No existing block anywhere: install to this shell's all-hosts profile.
+    $ProfilePath = if ($PROFILE.CurrentUserAllHosts) { $PROFILE.CurrentUserAllHosts } else { "$PROFILE" }
+    if (-not $ProfilePath) {
+        $ProfilePath = "$HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"
+    }
 }
 
 if (-not (Test-Path -LiteralPath $ProfilePath)) {
@@ -116,14 +152,14 @@ if (-not (Test-Path -LiteralPath $ProfilePath)) {
 
 $Existing = Get-Content -LiteralPath $ProfilePath -Raw -ErrorAction SilentlyContinue
 
-if ($Existing -and $Existing -match [regex]::Escape($MarkerStart)) {
+if ($Existing -and $Existing -match [regex]::Escape($MarkerAny)) {
     # Replace the old block: the span from the start marker through the end
     # marker. The block contains blank lines internally, so boundary detection
     # cannot rely on "next blank line".
     $Lines = $Existing -split "`r?`n"
     $Start = -1
     for ($i = 0; $i -lt $Lines.Count; $i++) {
-        if ($Lines[$i] -match [regex]::Escape($MarkerStart)) { $Start = $i; break }
+        if ($Lines[$i] -match [regex]::Escape($MarkerAny)) { $Start = $i; break }
     }
     $End = -1
     for ($i = $Start; $i -lt $Lines.Count; $i++) {

@@ -57,3 +57,58 @@ def test_interactive_commands_list_synced_with_install_ps1():
         f"$interactiveCmds in install.ps1 is {extracted_cmds}, "
         f"expected {expected_cmds}"
     )
+
+
+def test_install_ps1_tracks_both_before_and_current_dir():
+    """The wrapper must record the dir left AND the dir arrived at, so the
+    persistent stack top is always the current dir (cross-tab `wp u 0`)."""
+    text = (PROJECT_DIR / "install.ps1").read_text(encoding="utf-8")
+    calls = re.findall(r"_record_history\s+`\$(\w+)", text)
+    assert calls == ["before", "current"], f"_record_history calls: {calls}"
+
+
+def test_install_ps1_defines_no_space_cd_shortcuts():
+    r"""The no-space cd shortcuts (cd.., cd~, cd\) are single tokens that
+    PowerShell resolves to native Set-Location, bypassing the cd alias. The
+    wrapper must define same-named functions that route through
+    Set-WaypointLocation so they too feed the persistent history."""
+    text = (PROJECT_DIR / "install.ps1").read_text(encoding="utf-8")
+    for fn in (
+        "function global:cd.. { Set-WaypointLocation .. }",
+        "function global:cd~ { Set-WaypointLocation ~ }",
+        r"function global:cd\ { Set-WaypointLocation \ }",
+    ):
+        assert fn in text, f"missing in install.ps1: {fn}"
+
+
+def test_install_ps1_waypoint_functions_are_global():
+    """Block functions must be global:-prefixed so `uprof` (which dot-sources
+    the profile from inside a function scope) actually re-applies them. A
+    plain `function wp` defined in uprof's scope is discarded on return and
+    the session silently keeps the stale startup copy."""
+    text = (PROJECT_DIR / "install.ps1").read_text(encoding="utf-8")
+    for fn in (
+        "function global:Set-WaypointLocation {",
+        "function global:cdh {",
+        "function global:wp {",
+    ):
+        assert fn in text, f"missing in install.ps1: {fn}"
+
+
+def test_install_ps1_updates_existing_block_in_place():
+    """install.ps1 must find an existing Waypoint block across the known
+    profiles and replace it there, instead of appending a second block that a
+    dot-source chain (pwsh -> WindowsPowerShell) would shadow."""
+    text = (PROJECT_DIR / "install.ps1").read_text(encoding="utf-8")
+
+    assert "WindowsPowerShell\\Microsoft.PowerShell_profile.ps1" in text
+    assert "foreach ($Candidate in $KnownProfiles)" in text
+    assert "Test-Path -LiteralPath $Candidate" in text
+    # Detection must match the legacy marker too ("file saved as UTF-8"),
+    # not just the current ASCII-only text, or old blocks are missed.
+    assert 'MarkerAny = "# Waypoint - path bookmark CLI ("' in text
+    assert "Escape($MarkerAny)" in text
+    # The known-profile search must come before the CurrentUserAllHosts default.
+    search_pos = text.index("foreach ($Candidate in $KnownProfiles)")
+    default_pos = text.index("$PROFILE.CurrentUserAllHosts")
+    assert search_pos < default_pos

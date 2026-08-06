@@ -197,26 +197,26 @@ FULL_FLAGS = ("--full", "--all", "full", "all", "f", "a")
 
 
 def _parse_history(rest: list[str]) -> Command:
-    """`wp history` shows default window; `--full` full stack; `wp history N` shows N steps."""
+    """`wp history` default window; `--full` full stack; `N` rows (0 = current dir)."""
     if not rest:
         return HistoryCmd(full=False)
     if len(rest) == 1:
         if rest[0] in FULL_FLAGS:
             return HistoryCmd(full=True)
-        if rest[0].isdigit() and int(rest[0]) >= 1:
+        if rest[0].isdigit() and int(rest[0]) >= 0:
             return HistoryCmd(count=int(rest[0]))
     raise UsageError("usage: wp history [--full|--all|full|all|f|a|[N]]")
 
 
 def _parse_undo(rest: list[str]) -> Command:
-    """`wp undo` or `wp undo <N>`; N must be a positive integer (steps back)."""
+    """`wp undo` or `wp undo <N>`; N is a 0-based history row (0 = current dir, 1 = last jump)."""
     if len(rest) > 1:
         raise UsageError("usage: wp undo [N]")
     if not rest:
         return UndoCmd(steps=1)
     n = rest[0]
-    if not n.isdigit() or int(n) < 1:
-        raise UsageError("usage: wp undo [N]  (N must be a positive integer)")
+    if not n.isdigit() or int(n) < 0:
+        raise UsageError("usage: wp undo [N]  (N must be a non-negative integer)")
     return UndoCmd(steps=int(n))
 
 

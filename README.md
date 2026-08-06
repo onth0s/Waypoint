@@ -18,19 +18,22 @@ Adds a `wp` function to your PowerShell `$PROFILE`. The installer uses `pip inst
 ```
 wp              → go to default bookmark
 wp <alias>      → go to bookmark named <alias>
-wp undo [N]     → go back N navigation steps (default 1)
-wp history [N]  → show the last N navigation steps (default 5)
+wp undo [N]     → go to history row N (0 = current dir, 1 = last jump; default 1)
+wp history [N]  → show the last N directories (incl. current; default 5)
 wp history --all → show the full navigation history
 ```
 
 `wp` is always a shell `cd`. No subcommand needed.
 
-Every successful `wp` jump records where you *came from*; `wp undo` walks back
-through those origins (stale, deleted dirs are skipped). `wp history` (alias
-`wp h`) lists the newest 5, newest first, so index N matches `wp undo N`;
-`wp h --all` (also `--full`, `full`, `all`, `f`, `a`) shows the whole stack.
-The stack is capped at 50 entries (`UNDO_STACK` in `waypoint/constants.py`);
-the default window size is `HISTORY_PREVIEW` (5).
+Every directory change records where you *came from* **and** where you *arrived*
+(both deduped), so the newest persistent history entry is always the current
+directory. `wp history` (alias `wp h`) lists the newest entries, newest first,
+starting at row 0 = the current dir, so row N matches `wp undo N`. Because the
+current dir is persisted, a **fresh tab** can run `wp h` and `wp u 0` to land
+instantly where the last tab was. Stale, deleted dirs are skipped. `wp h --all`
+(also `--full`, `full`, `all`, `f`, `a`) shows the whole stack. The stack is
+capped at 50 entries (`UNDO_STACK` in `waypoint/constants.py`); the default
+window size is `HISTORY_PREVIEW` (5).
 
 ### Manage bookmarks
 
@@ -114,7 +117,12 @@ default: wp
 - "C:\\Users\\you\\dev"
 ```
 
-The origins of directory navigations (both `cd` and `wp` jumps recorded by the PowerShell wrapper, automatically deduped), oldest first. Missing file = empty history. Written atomically alongside `waypoint.yaml` and trimmed to the newest 50 entries; the CLI's undo walks it newest-first.
+The most recent directories, oldest first (the newest entry is the current dir,
+or the last tab's dir in a fresh shell). Every location change records both the
+dir you left and the dir you arrived at, automatically deduped, so a new tab can
+`wp u 0` back to where the last one was. Missing file = empty history. Written
+atomically alongside `waypoint.yaml` and trimmed to the newest 50 entries; the
+CLI's undo walks it newest-first.
 
 ### `wp set`
 
@@ -204,7 +212,7 @@ Or run individually:
 ## Notes
 
 - The `install.ps1` path is hardcoded to this project location. If the project moves, re-run `install.ps1`.
-- The installer also overrides the built-in `cd`/`chdir` aliases with `Set-WaypointLocation`, so plain directory changes (including `cd -`, which toggles to the previous location) feed an in-session history, `$global:WpHistory`. `wp` jumps route through the same wrapper. `cdh` prints the session history. That stack is session-local; `wp undo`/`wp history` read the persistent `history.yaml` stack instead.
+- The installer also overrides the built-in `cd`/`chdir` aliases with `Set-WaypointLocation`, so plain directory changes (including `cd -`, which toggles to the previous location) feed an in-session history, `$global:WpHistory`. The no-space shortcuts `cd..`, `cd~`, and `cd\` are single tokens PowerShell resolves to native `Set-Location` (bypassing the alias), so the wrapper defines same-named functions that route them through the same recorder. `wp` jumps route through the same wrapper. `cdh` prints the session history. That stack is session-local; `wp undo`/`wp history` read the persistent `history.yaml` stack instead (which is fed the same way and, since the wrapper records both the dir left and the dir arrived at, always has the current dir on top).
 - The `wp` bookmark is self-referential: it points back at the project dir. This is intentional — `wp wp` = "go to waypoint itself."
 - Navigation prints the resolved absolute path as the *only* stdout line; `wp` then `Set-Location`s there. Every other command prints rich-formatted output (AGENTS.md), which the wrapper re-emits — a bare existing path on stdout is the one thing that triggers a `cd`, so `wp ls` or an error can never move you.
 - Colors: the wrapper sets `WP_FORCE_COLOR=1` for interactive sessions (stdout is a pipe to PowerShell, which would otherwise make rich drop color), and removes it afterwards. Plain `python waypoint/__main__.py` runs without forced color.

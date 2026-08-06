@@ -266,7 +266,12 @@ def test_nav_records_origin_and_undo_returns(monkeypatch, tmp_path, capsys):
     assert out.out.strip() == str(target)
     assert store.load_history() == [str(home)]
 
+    # The wrapper also records the arrival dir (the new current dir), so the
+    # stack top is always the current dir; simulate it here.
     monkeypatch.chdir(target)
+    assert _run(monkeypatch, tmp_path, ["_record_history", str(target)]) == 0
+    capsys.readouterr()
+
     rc = _run(monkeypatch, tmp_path, ["undo"])
     out = capsys.readouterr()
     assert rc == 0
@@ -322,7 +327,11 @@ def test_undo_count_steps_back_n(monkeypatch, tmp_path, capsys):
     assert _run(monkeypatch, tmp_path, ["bb"]) == 0
     capsys.readouterr()
 
+    # Simulate the wrapper recording the arrival dir (current dir on top).
     monkeypatch.chdir(b)
+    assert _run(monkeypatch, tmp_path, ["_record_history", str(b)]) == 0
+    capsys.readouterr()
+
     rc = _run(monkeypatch, tmp_path, ["undo", "2"])
     out = capsys.readouterr()
     assert rc == 0
@@ -347,6 +356,9 @@ def test_undo_skips_stale_entries(monkeypatch, tmp_path, capsys):
     a = tmp_path / "a"
     a.mkdir()
     monkeypatch.chdir(a)
+    # Simulate the wrapper recording the arrival dir.
+    assert _run(monkeypatch, tmp_path, ["_record_history", str(a)]) == 0
+    capsys.readouterr()
 
     rc = _run(monkeypatch, tmp_path, ["undo"])
     out = capsys.readouterr()
@@ -396,11 +408,11 @@ def test_history_default_window_and_full(monkeypatch, tmp_path, capsys):
     out = capsys.readouterr()
     assert rc == 0
     lines = out.out.splitlines()
-    # Newest 5 of 7, indexed from 1 (true undo index), plus a "N more" footer.
+    # Newest 5 of 7, 0-indexed (0 = newest / current dir), plus a "N more" footer.
     assert len(lines) == HISTORY_PREVIEW + 1
-    assert lines[0].startswith("1  ")
+    assert lines[0].startswith("0  ")
     assert lines[0].endswith("d6")
-    assert lines[-2].startswith("5  ")
+    assert lines[-2].startswith("4  ")
     assert lines[-2].endswith("d2")
     assert "2 more" in out.out
     assert not _is_nav_protocol_hit(out.out)
@@ -410,8 +422,8 @@ def test_history_default_window_and_full(monkeypatch, tmp_path, capsys):
     assert rc == 0
     lines = out.out.splitlines()
     assert len(lines) == 7
-    assert lines[0].startswith("1  ") and lines[0].endswith("d6")
-    assert lines[-1].startswith("7  ") and lines[-1].endswith("d0")
+    assert lines[0].startswith("0  ") and lines[0].endswith("d6")
+    assert lines[-1].startswith("6  ") and lines[-1].endswith("d0")
     assert "more" not in out.out
 
 
@@ -447,6 +459,83 @@ def test_history_empty_hints(monkeypatch, tmp_path, capsys):
     assert not _is_nav_protocol_hit(out.out)
 
 
+def test_history_count_zero_shows_current_dir_only(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("WP_HOME", str(tmp_path / "data"))
+    monkeypatch.setattr(store, "PROJECT_DIR", tmp_path)
+    a = tmp_path / "a"
+    b = tmp_path / "b"
+    a.mkdir()
+    b.mkdir()
+    store.save_history([str(a), str(b)])
+
+    rc = _run(monkeypatch, tmp_path, ["h", "0"])
+    out = capsys.readouterr()
+    assert rc == 0
+    lines = out.out.splitlines()
+    assert len(lines) == 2
+    assert lines[0].startswith("0  ") and lines[0].endswith(str(b))
+    assert "1 more" in out.out
+    assert not _is_nav_protocol_hit(out.out)
+
+
+def test_undo_zero_same_tab_is_noop_and_keeps_stack(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("WP_HOME", str(tmp_path / "data"))
+    monkeypatch.setattr(store, "PROJECT_DIR", tmp_path)
+    a = tmp_path / "a"
+    b = tmp_path / "b"
+    a.mkdir()
+    b.mkdir()
+    store.save_history([str(a), str(b)])
+    monkeypatch.chdir(b)
+
+    rc = _run(monkeypatch, tmp_path, ["undo", "0"])
+    out = capsys.readouterr()
+    assert rc == 0
+    assert out.out.strip() == str(b)
+    # No move happens, so the current-dir slot is preserved, not pruned.
+    assert store.load_history() == [str(a), str(b)]
+
+
+def test_undo_zero_fresh_tab_jumps_to_last_dir(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("WP_HOME", str(tmp_path / "data"))
+    monkeypatch.setattr(store, "PROJECT_DIR", tmp_path)
+    a = tmp_path / "a"
+    b = tmp_path / "b"
+    fresh = tmp_path / "fresh"
+    a.mkdir()
+    b.mkdir()
+    fresh.mkdir()
+    # Simulate a fresh tab whose cwd (fresh) is not the persisted top (b).
+    store.save_history([str(a), str(b)])
+    monkeypatch.chdir(fresh)
+
+    rc = _run(monkeypatch, tmp_path, ["undo", "0"])
+    out = capsys.readouterr()
+    assert rc == 0
+    assert out.out.strip() == str(b)
+    # The jump prunes entries above the target (a stays).
+    assert store.load_history() == [str(a)]
+
+
+def test_record_history_dual_dedup(monkeypatch, tmp_path):
+    monkeypatch.setenv("WP_HOME", str(tmp_path / "data"))
+    monkeypatch.setattr(store, "PROJECT_DIR", tmp_path)
+    before = tmp_path / "before"
+    current = tmp_path / "current"
+    before.mkdir()
+    current.mkdir()
+
+    # Wrapper records the dir left, then the dir arrived at.
+    assert _run(monkeypatch, tmp_path, ["_record_history", str(before)]) == 0
+    assert _run(monkeypatch, tmp_path, ["_record_history", str(current)]) == 0
+    assert store.load_history() == [str(before), str(current)]
+
+    # Moving into a dir we already left dedups the overlap: [before, current, before].
+    assert _run(monkeypatch, tmp_path, ["_record_history", str(current)]) == 0
+    assert _run(monkeypatch, tmp_path, ["_record_history", str(before)]) == 0
+    assert store.load_history() == [str(before), str(current), str(before)]
+
+
 def test_set_default_add_do_not_record(monkeypatch, tmp_path, capsys):
     target = _add_dev(monkeypatch, tmp_path)
     assert _run(monkeypatch, tmp_path, ["add", "dev", str(target)]) == 0
@@ -458,7 +547,7 @@ def test_set_default_add_do_not_record(monkeypatch, tmp_path, capsys):
 
 
 def test_undo_usage_error(monkeypatch, tmp_path, capsys):
-    for argv in (["undo", "0"], ["undo", "-1"], ["undo", "x"], ["undo", "1", "2"]):
+    for argv in (["undo", "-1"], ["undo", "x"], ["undo", "1", "2"]):
         rc = _run(monkeypatch, tmp_path, argv)
         out = capsys.readouterr()
         assert rc == 2, argv
@@ -846,9 +935,9 @@ def test_g6_history_live_entry_alignment(monkeypatch, tmp_path, capsys):
     assert rc == 0
     lines = [line.strip() for line in out.splitlines() if line.strip()]
     assert len(lines) == 3
-    assert f"1  {dir_c}" in lines[0]
-    assert f"2  {dir_b}" in lines[1]
-    assert f"3  {dir_a}" in lines[2]
+    assert f"0  {dir_c}" in lines[0]
+    assert f"1  {dir_b}" in lines[1]
+    assert f"2  {dir_a}" in lines[2]
 
 def test_g5_set_and_default_parity(monkeypatch, tmp_path):
     target = _add_dev(monkeypatch, tmp_path)

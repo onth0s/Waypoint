@@ -11,9 +11,9 @@ from waypoint import clipboard, store
 from waypoint.constants import EXIT_ERROR, EXIT_OK, TEMP_SLOT
 from waypoint.output import err, hint, ok, warn
 from waypoint.prompts import prompt_name
-from waypoint.resolver import AddCmd, DefaultCmd, RmCmd, SetCmd, looks_like_path
+from waypoint.resolver import AddCmd, DefaultCmd, GetCmd, RmCmd, SetCmd, looks_like_path
 
-__all__ = ["_add", "_rm", "_ls", "_default", "_set", "_set_temp_slot"]
+__all__ = ["_add", "_rm", "_ls", "_default", "_set", "_get", "_set_temp_slot"]
 
 
 def _add(cmd: AddCmd, console: Console) -> int:
@@ -59,11 +59,24 @@ def _rm(cmd: RmCmd, console: Console) -> int:
     return EXIT_OK
 
 
+def _row_style(has_default: bool, is_cwd: bool) -> str | None:
+    """Row style for a bookmark: default marker, current-dir highlight, or both."""
+    if has_default and is_cwd:
+        return "bold green on bright_black"
+    if is_cwd:
+        return "bold white on bright_black"
+    if has_default:
+        return "bold green"
+    return None
+
+
 def _ls(console: Console) -> int:
     b = store.load_bookmarks()
     if not b.bookmarks:
         hint(console, "No bookmarks yet. Add one with: [bold]wp add[/bold]")
         return EXIT_OK
+
+    cwd = os.path.normcase(os.path.abspath(os.getcwd()))
 
     # Group aliases by normalized path while preserving first-seen order
     path_groups: dict[str, list[str]] = {}
@@ -90,11 +103,12 @@ def _ls(console: Console) -> int:
     for norm, aliases in path_groups.items():
         path = path_map[norm]
         has_default = any(a == b.default for a in aliases)
+        is_cwd = os.path.normcase(os.path.abspath(path)) == cwd
         formatted_aliases = [
             f"{a} *" if a == b.default else a for a in aliases
         ]
         alias_str = ", ".join(formatted_aliases)
-        row_style = "bold green" if has_default else None
+        row_style = _row_style(has_default, is_cwd)
         table.add_row(alias_str, path, style=row_style)
 
     console.print(table)
@@ -136,3 +150,28 @@ def _default(cmd: DefaultCmd, console: Console) -> int:
 
 def _set(cmd: SetCmd, console: Console) -> int:
     return _set_default(cmd.arg, console)
+
+
+def _get(cmd: GetCmd, console: Console) -> int:
+    """Print a bookmark's path and copy it to the clipboard (default if no alias)."""
+    b = store.load_bookmarks()
+    if cmd.alias is not None:
+        alias = cmd.alias
+        target = b.bookmarks.get(alias)
+        if target is None:
+            raise store.BookmarkNotFoundError(alias)
+    else:
+        if b.default is None:
+            err(console, "No default bookmark. Set one with: [bold]wp default <alias>[/bold]")
+            return EXIT_ERROR
+        alias = b.default
+        target = b.bookmarks.get(alias)
+        if target is None:
+            err(console, f"Default bookmark {alias!r} no longer exists.")
+            return EXIT_ERROR
+    console.print(target, soft_wrap=True)
+    if clipboard.copy_text(target):
+        hint(console, "Copied to clipboard.")
+    else:
+        warn(console, "Couldn't copy to clipboard.")
+    return EXIT_OK

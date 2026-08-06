@@ -17,7 +17,7 @@ import sys
 from rich.console import Console
 
 from waypoint import store
-from waypoint.commands.bookmarks import _add, _default, _ls, _rm, _set
+from waypoint.commands.bookmarks import _add, _default, _get, _ls, _rm, _set
 from waypoint.commands.config import _config, _store
 from waypoint.commands.history import _history, _record_history_entry, _undo
 from waypoint.commands.launcher import _help, _open
@@ -30,6 +30,7 @@ from waypoint.resolver import (
     Command,
     ConfigCmd,
     DefaultCmd,
+    GetCmd,
     HelpCmd,
     HistoryCmd,
     LsCmd,
@@ -102,6 +103,8 @@ def dispatch(cmd: Command, console: Console) -> int:
         return _default(cmd, console)
     if isinstance(cmd, SetCmd):
         return _set(cmd, console)
+    if isinstance(cmd, GetCmd):
+        return _get(cmd, console)
     if isinstance(cmd, ConfigCmd):
         return _config(cmd, console)
     if isinstance(cmd, StoreCmd):

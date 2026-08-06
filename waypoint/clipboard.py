@@ -21,3 +21,12 @@ def clipboard_path() -> str | None:
     if os.path.isfile(text):
         return os.path.dirname(text)
     return None
+
+
+def copy_text(text: str) -> bool:
+    """Copy text to the clipboard. Returns True on success."""
+    try:
+        pyperclip.copy(text)
+    except (OSError, RuntimeError):
+        return False
+    return True

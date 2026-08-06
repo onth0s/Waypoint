@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import types
+
 from rich.console import Console
 
-from waypoint import store
-from waypoint.commands.bookmarks import _add, _ls, _rm, _row_style
+from waypoint import clipboard, store
+from waypoint.commands.bookmarks import _add, _get, _ls, _rm, _row_style
 from waypoint.constants import EXIT_OK
-from waypoint.resolver import AddCmd, RmCmd
+from waypoint.resolver import AddCmd, GetCmd, RmCmd
 
 
 def test_add_explicit_alias_and_path(tmp_path, capsys):
@@ -85,6 +87,39 @@ def test_ls_empty_bookmarks(capsys):
     out = capsys.readouterr().out
     assert rc == EXIT_OK
     assert "No bookmarks yet" in out
+
+
+def test_get_copies_and_prints(tmp_path, capsys, monkeypatch):
+    console = Console()
+    target = tmp_path / "prof"
+    target.mkdir()
+    b = store.Bookmarks(bookmarks={"prof": str(target)}, default=None)
+    store.save_bookmarks(b)
+
+    copied = []
+    monkeypatch.setattr(clipboard, "pyperclip", types.SimpleNamespace(copy=copied.append))
+
+    rc = _get(GetCmd(alias="prof"), console)
+    out = capsys.readouterr().out
+    assert rc == EXIT_OK
+    assert copied == [str(target)]
+    assert str(target) in out
+
+
+def test_get_default_when_no_alias(tmp_path, capsys, monkeypatch):
+    console = Console()
+    target = tmp_path / "dev"
+    target.mkdir()
+    b = store.Bookmarks(bookmarks={"dev": str(target)}, default="dev")
+    store.save_bookmarks(b)
+
+    copied = []
+    monkeypatch.setattr(clipboard, "pyperclip", types.SimpleNamespace(copy=copied.append))
+
+    rc = _get(GetCmd(alias=None), console)
+    capsys.readouterr()
+    assert rc == EXIT_OK
+    assert copied == [str(target)]
 
 
 def test_row_style_combinations():

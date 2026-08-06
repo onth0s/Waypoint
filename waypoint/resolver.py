@@ -13,6 +13,7 @@ __all__ = [
     "LsCmd",
     "DefaultCmd",
     "SetCmd",
+    "GetCmd",
     "ConfigCmd",
     "StoreCmd",
     "HelpCmd",
@@ -36,6 +37,7 @@ RESERVED = {
     "list",
     "default",
     "set",
+    "get",
     "store",
     "config",
     "help",
@@ -86,6 +88,11 @@ class SetCmd:
 
 
 @dataclass
+class GetCmd:
+    alias: str | None = None
+
+
+@dataclass
 class ConfigCmd:
     target: str | None = None
 
@@ -128,6 +135,7 @@ Command = (
     | LsCmd
     | DefaultCmd
     | SetCmd
+    | GetCmd
     | ConfigCmd
     | StoreCmd
     | HelpCmd
@@ -177,6 +185,10 @@ def parse_args(argv: list[str]) -> Command:
         if rest[0] == ".":
             return SetCmd(arg=".")
         return SetCmd(arg=rest[0])
+    if head == "get":
+        if len(rest) > 1:
+            raise UsageError("usage: wp get [alias]")
+        return GetCmd(alias=rest[0] if rest else None)
     if head == "store":
         if not rest:
             return StoreCmd(arg=None)

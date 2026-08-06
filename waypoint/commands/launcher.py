@@ -55,6 +55,7 @@ def _help(console: Console) -> int:
     console.print("  wp rm <alias>           delete a bookmark")
     console.print("  wp ls, wp list          list all bookmarks")
     console.print("  wp set [alias|path|~] set the default (clipboard -> cwd -> temp slot)")
+    console.print("  wp get [alias]        copy a bookmark's path to the clipboard")
     console.print("  wp default <alias>    set the default bookmark")
     console.print("  wp default . | <path|~> point default at a directory (temp slot)")
     console.print()

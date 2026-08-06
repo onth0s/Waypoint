@@ -95,6 +95,8 @@ def test_wrapper_protocol_invariant(monkeypatch, tmp_path, capsys):
         ["set"],
         ["set", str(target)],
         ["set", "dev"],
+        ["get"],
+        ["get", "dev"],
         ["config"],
         ["config", "home", str(tmp_path / "home2")],
         ["help"],
@@ -825,6 +827,42 @@ def test_set_missing_path_errors(monkeypatch, tmp_path, capsys):
     out = capsys.readouterr()
     assert rc == 1
     assert "not a directory" in out.out
+
+
+def test_get_copies_path_and_does_not_nav(monkeypatch, tmp_path, capsys):
+    target = _add_dev(monkeypatch, tmp_path)
+    assert _run(monkeypatch, tmp_path, ["add", "dev", str(target)]) == 0
+    capsys.readouterr()
+
+    copied = []
+    monkeypatch.setattr(clipboard, "pyperclip", types.SimpleNamespace(copy=copied.append))
+    rc = _run(monkeypatch, tmp_path, ["get", "dev"])
+    out = capsys.readouterr()
+    assert rc == 0
+    assert copied == [str(target)]
+    assert str(target) in out.out
+    assert not _is_nav_protocol_hit(out.out)
+
+
+def test_get_default_bookmark(monkeypatch, tmp_path, capsys):
+    target = _add_dev(monkeypatch, tmp_path)
+    assert _run(monkeypatch, tmp_path, ["add", "dev", str(target)]) == 0
+    assert _run(monkeypatch, tmp_path, ["default", "dev"]) == 0
+    capsys.readouterr()
+
+    copied = []
+    monkeypatch.setattr(clipboard, "pyperclip", types.SimpleNamespace(copy=copied.append))
+    rc = _run(monkeypatch, tmp_path, ["get"])
+    capsys.readouterr()
+    assert rc == 0
+    assert copied == [str(target)]
+
+
+def test_get_unknown_alias(monkeypatch, tmp_path, capsys):
+    rc = _run(monkeypatch, tmp_path, ["get", "nope"])
+    out = capsys.readouterr()
+    assert rc == 1
+    assert "No bookmark 'nope'" in out.out
 
 
 def test_add_clipboard_file_uses_parent(monkeypatch, tmp_path, capsys):

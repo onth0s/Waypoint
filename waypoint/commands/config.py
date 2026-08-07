@@ -19,7 +19,7 @@ def _config(cmd: ConfigCmd, console: Console) -> int:
         # Labeled line, never a bare path: the wrapper's cd discriminator must
         # not mistake this for a navigation target. soft_wrap keeps the long
         # path on one line instead of wrapping it onto a bare-path-looking line.
-        console.print(f"home: {store.data_dir()}", soft_wrap=True)
+        console.print(f"[bold cyan]home: {store.data_dir()}[/bold cyan]", soft_wrap=True)
         return EXIT_OK
     target = cmd.target
     if target.strip().lower() == "null":

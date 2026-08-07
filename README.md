@@ -78,6 +78,21 @@ wp -h       → show usage
 wp -?       → show usage
 ```
 
+## Output & styling
+
+All human-facing output is rendered with `rich` and colorized (AGENTS.md); the `wp` wrapper forces color with `WP_FORCE_COLOR=1` since its stdout is a pipe. The palette is consistent across commands:
+
+- **Errors** (`Error: ...`) — `bold red`, exit 1; usage errors exit 2.
+- **Success** (Saved, Removed, Default is now, Home set) — `bold green`.
+- **Warnings** (e.g. default bookmark removed) — `yellow`.
+- **Hints** (`* = default bookmark`, `Copied to clipboard.`, `N more` footers, empty-state tips) — `cyan`.
+- **`wp ls`** — table with `cyan` aliases, `bright_white` paths, `bold cyan` header; the default (`*`) and current-dir rows are highlighted.
+- **`wp history`** — row index in `bold cyan`, path in default.
+- **`wp store` / `wp config` / `wp get`** — labels and paths in `cyan`.
+- **`wp help`** — `bold cyan` section headers, `cyan` command tokens.
+
+The one sanctioned exception is navigation: `wp <alias>` and `wp undo` print the bare resolved path as the *only* stdout line, never styled, so the wrapper can `Set-Location` there — a bare existing path is the wrapper's cd discriminator.
+
 ## Design: reserved keywords vs aliases
 
 The parser is greedy on aliases. `wp <anything>` resolves as:

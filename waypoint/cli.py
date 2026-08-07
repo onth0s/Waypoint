@@ -69,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
         cmd = parse_args(args)
         return dispatch(cmd, console)
     except _Cancelled:
-        console.print("Cancelled.")
+        console.print("[yellow]Cancelled.[/yellow]")
         return EXIT_ERROR
     except UsageError as e:
         err(console, e)

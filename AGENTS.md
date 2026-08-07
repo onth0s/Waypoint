@@ -1,6 +1,6 @@
 # Agent Instructions
 
-Use `rich` to color all output that will be read by an end user.
+Use `rich` (`rich.console.Console`, `rich.table.Table`, `rich.panel.Panel`, `rich.text.Text`) for all user-facing CLI logs, status messages, table outputs, and error/warning prompts to maintain vibrant, high-contrast, structured styling across terminal outputs.
 
 ## File Access & Workspace Isolation
 

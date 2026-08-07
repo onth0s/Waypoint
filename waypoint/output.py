@@ -27,6 +27,6 @@ def warn(console: Console, msg: str) -> None:
 
 
 def hint(console: Console, msg: str) -> None:
-    """Print an informational hint line."""
-    console.print(msg)
+    """Print an informational hint line (cyan, keeps inline markup)."""
+    console.print(f"[cyan]{msg}[/cyan]")
 

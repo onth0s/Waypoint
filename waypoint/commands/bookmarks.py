@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Column, Table
 
 from waypoint import clipboard, store
@@ -169,7 +170,7 @@ def _get(cmd: GetCmd, console: Console) -> int:
         if target is None:
             err(console, f"Default bookmark {alias!r} no longer exists.")
             return EXIT_ERROR
-    console.print(target, soft_wrap=True)
+    console.print(f"[bold cyan]{escape(target)}[/bold cyan]", soft_wrap=True)
     if clipboard.copy_text(target):
         hint(console, "Copied to clipboard.")
     else:

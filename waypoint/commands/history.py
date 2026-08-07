@@ -70,7 +70,7 @@ def _history(cmd: HistoryCmd, console: Console) -> int:
         shown = live_paths[-HISTORY_PREVIEW:]
     # Indexed lines, newest first: 0 = live_paths[-1] (current dir), 1 = previous...
     for i, path in enumerate(reversed(shown)):
-        console.print(f"{i}  {path}", soft_wrap=True)
+        console.print(f"[bold cyan]{i}[/bold cyan]  {path}", soft_wrap=True)
     hidden = len(live_paths) - len(shown)
     if hidden > 0:
         hint(console, f"({hidden} more; run [bold]wp h --all[/bold])")

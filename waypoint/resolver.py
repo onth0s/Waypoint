@@ -43,6 +43,8 @@ RESERVED = {
     "help",
     "undo",
     "u",
+    "U",
+    "uu",
     "history",
     "h",
     ".",
@@ -162,7 +164,9 @@ def parse_args(argv: list[str]) -> Command:
     if head in ("history", "h"):
         return _parse_history(rest)
     if head in ("undo", "u"):
-        return _parse_undo(rest)
+        return _parse_undo(rest, default_steps=1)
+    if head in ("U", "uu"):
+        return _parse_undo(rest, default_steps=0)
     if head in (".", "-vs"):
         _require(rest, 0, f"wp {head} takes no arguments")
         return OpenCmd(kind="explorer" if head == "." else "code")
@@ -220,12 +224,12 @@ def _parse_history(rest: list[str]) -> Command:
     raise UsageError("usage: wp history [--full|--all|full|all|f|a|[N]]")
 
 
-def _parse_undo(rest: list[str]) -> Command:
+def _parse_undo(rest: list[str], default_steps: int = 1) -> Command:
     """`wp undo` or `wp undo <N>`; N is a 0-based history row (0 = current dir, 1 = last jump)."""
     if len(rest) > 1:
         raise UsageError("usage: wp undo [N]")
     if not rest:
-        return UndoCmd(steps=1)
+        return UndoCmd(steps=default_steps)
     n = rest[0]
     if not n.isdigit() or int(n) < 0:
         raise UsageError("usage: wp undo [N]  (N must be a non-negative integer)")

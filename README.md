@@ -19,6 +19,7 @@ Adds a `wp` function to your PowerShell `$PROFILE`. The installer uses `pip inst
 wp              → go to default bookmark
 wp <alias>      → go to bookmark named <alias>
 wp undo [N]     → go to history row N (0 = current dir, 1 = last jump; default 1)
+wp U / wp uu    → aliases for `wp undo 0`
 wp history [N]  → show the last N directories (incl. current; default 5)
 wp history --all → show the full navigation history
 ```
@@ -97,12 +98,12 @@ The one sanctioned exception is navigation: `wp <alias>` and `wp undo` print the
 
 The parser is greedy on aliases. `wp <anything>` resolves as:
 
-1. If `<anything>` matches a **reserved keyword** (`add`, `rm`, `ls`, `list`, `default`, `set`, `get`, `store`, `config`, `help`, `undo`, `u`, `history`, `h`, `.`, `-vs`, `-h`, `-?`) → run the subcommand.
+1. If `<anything>` matches a **reserved keyword** (`add`, `rm`, `ls`, `list`, `default`, `set`, `get`, `store`, `config`, `help`, `undo`, `u`, `U`, `uu`, `history`, `h`, `.`, `-vs`, `-h`, `-?`) → run the subcommand.
 2. Otherwise → treat it as a bookmark alias and navigate to it.
 
 This means `wp dev` goes to the "dev" bookmark. `wp add` runs the add subcommand. No disambiguation needed — reserved words are a small, closed set.
 
-Reserved keywords: `add`, `rm`, `ls`, `list`, `default`, `set`, `get`, `store`, `config`, `help`, `undo`, `u`, `history`, `h`, `.`, `-vs`, `-h`, `-?` (plus `_record_history`, reserved for internal wrapper use)
+Reserved keywords: `add`, `rm`, `ls`, `list`, `default`, `set`, `get`, `store`, `config`, `help`, `undo`, `u`, `U`, `uu`, `history`, `h`, `.`, `-vs`, `-h`, `-?` (plus `_record_history`, reserved for internal wrapper use)
 
 ### Default bookmark
 

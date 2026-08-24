@@ -157,3 +157,63 @@ def test_atomic_write_creates_nested_parent_dirs(tmp_path):
     assert target.is_file()
     assert target.read_text(encoding="utf-8") == "content"
 
+
+def test_bookmarks_path_prefers_cwd(monkeypatch, tmp_path):
+    data_home = tmp_path / "global_data"
+    data_home.mkdir()
+    _isolate(monkeypatch, tmp_path, home=data_home)
+
+    local_dir = tmp_path / "local_proj"
+    local_dir.mkdir()
+    local_wp = local_dir / "waypoint.yaml"
+    local_wp.write_text(
+        yaml.safe_dump({"bookmarks": {"local": str(local_dir)}, "default": "local"}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(local_dir)
+    assert store.bookmarks_path() == local_wp
+    b = store.load_bookmarks()
+    assert b.bookmarks == {"local": str(local_dir)}
+    assert b.default == "local"
+
+    # Saving modifies the cwd file, not global
+    store.save_bookmarks(store.Bookmarks(bookmarks={"local2": str(local_dir)}, default="local2"))
+    assert (local_dir / "waypoint.yaml").is_file()
+    assert not (data_home / "waypoint.yaml").exists()
+
+
+def test_history_path_prefers_cwd(monkeypatch, tmp_path):
+    data_home = tmp_path / "global_data"
+    data_home.mkdir()
+    _isolate(monkeypatch, tmp_path, home=data_home)
+
+    local_dir = tmp_path / "local_proj"
+    local_dir.mkdir()
+    local_hist = local_dir / "history.yaml"
+    local_hist.write_text(yaml.safe_dump([r"C:\local_origin"]), encoding="utf-8")
+
+    monkeypatch.chdir(local_dir)
+    assert store.history_path() == local_hist
+    assert store.load_history() == [r"C:\local_origin"]
+
+    # Saving modifies the cwd file, not global
+    store.save_history([r"C:\local_origin", r"C:\local_dest"])
+    assert store.load_history() == [r"C:\local_origin", r"C:\local_dest"]
+    assert not (data_home / "history.yaml").exists()
+
+
+def test_independent_cwd_resolution(monkeypatch, tmp_path):
+    data_home = tmp_path / "global_data"
+    data_home.mkdir()
+    _isolate(monkeypatch, tmp_path, home=data_home)
+
+    local_dir = tmp_path / "local_proj"
+    local_dir.mkdir()
+    (local_dir / "waypoint.yaml").write_text("bookmarks: {}\ndefault: null\n", encoding="utf-8")
+
+    monkeypatch.chdir(local_dir)
+    assert store.bookmarks_path() == local_dir / "waypoint.yaml"
+    assert store.history_path() == data_home / "history.yaml"
+
+

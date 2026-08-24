@@ -74,9 +74,11 @@ wp -vs      → open bookmarked dir in VS Code
 ### Help
 
 ```
-wp help     → show usage
-wp -h       → show usage
-wp -?       → show usage
+wp help         → show usage
+wp --help       → show usage
+wp -h           → show usage
+wp -?           → show usage
+wp --help-full  → show full reference (all aliases, flags, resolution rules)
 ```
 
 ## Output & styling
@@ -90,7 +92,7 @@ All human-facing output is rendered with `rich` and colorized (AGENTS.md); the `
 - **`wp ls`** — table with `cyan` aliases, `bright_white` paths, `bold cyan` header; the default (`*`) and current-dir rows are highlighted.
 - **`wp history`** — row index in `bold cyan`, path in default.
 - **`wp store` / `wp config` / `wp get`** — labels and paths in `cyan`.
-- **`wp help`** — `bold cyan` section headers, `cyan` command tokens.
+- **`wp help` / `wp --help-full`** — `bold cyan` section headers, `cyan` command tokens.
 
 The one sanctioned exception is navigation: `wp <alias>` and `wp undo` print the bare resolved path as the *only* stdout line, never styled, so the wrapper can `Set-Location` there — a bare existing path is the wrapper's cd discriminator.
 
@@ -98,12 +100,12 @@ The one sanctioned exception is navigation: `wp <alias>` and `wp undo` print the
 
 The parser is greedy on aliases. `wp <anything>` resolves as:
 
-1. If `<anything>` matches a **reserved keyword** (`add`, `rm`, `ls`, `list`, `default`, `set`, `get`, `store`, `config`, `help`, `undo`, `u`, `U`, `uu`, `history`, `h`, `.`, `-vs`, `-h`, `-?`) → run the subcommand.
+1. If `<anything>` matches a **reserved keyword** (`add`, `rm`, `ls`, `list`, `default`, `set`, `get`, `store`, `config`, `help`, `--help`, `--help-full`, `undo`, `u`, `U`, `uu`, `history`, `h`, `.`, `-vs`, `-h`, `-?`) → run the subcommand.
 2. Otherwise → treat it as a bookmark alias and navigate to it.
 
 This means `wp dev` goes to the "dev" bookmark. `wp add` runs the add subcommand. No disambiguation needed — reserved words are a small, closed set.
 
-Reserved keywords: `add`, `rm`, `ls`, `list`, `default`, `set`, `get`, `store`, `config`, `help`, `undo`, `u`, `U`, `uu`, `history`, `h`, `.`, `-vs`, `-h`, `-?` (plus `_record_history`, reserved for internal wrapper use)
+Reserved keywords: `add`, `rm`, `ls`, `list`, `default`, `set`, `get`, `store`, `config`, `help`, `--help`, `--help-full`, `undo`, `u`, `U`, `uu`, `history`, `h`, `.`, `-vs`, `-h`, `-?` (plus `_record_history`, reserved for internal wrapper use)
 
 ### Default bookmark
 
@@ -153,10 +155,11 @@ CLI's undo walks it newest-first.
 home: null  # null = default (~/.waypoint)
 ```
 
-Resolution order for data path:
-1. `WP_HOME` env var (if set and non-empty)
-2. `config.yaml` → `home` key (if non-null)
-3. Default: `~/.waypoint` — `Path.home() / ".waypoint"` in `waypoint/store.py` (`config.yaml` with `home: null` resolves to `~/.waypoint`)
+Resolution order for data files (`waypoint.yaml`, `history.yaml`):
+1. File in `cwd` (if `waypoint.yaml` or `history.yaml` exists in the current working directory)
+2. `WP_HOME` env var (if set and non-empty)
+3. `config.yaml` → `home` key (if non-null)
+4. Default: `~/.waypoint` — `Path.home() / ".waypoint"` in `waypoint/store.py` (`config.yaml` with `home: null` resolves to `~/.waypoint`)
 
 ## Stack
 

@@ -624,11 +624,32 @@ def test_open_explorer_and_code(monkeypatch, tmp_path, capsys):
 
 def test_help_and_flags(monkeypatch, tmp_path, capsys):
     assert _run(monkeypatch, tmp_path, ["help"]) == 0
+    out = capsys.readouterr().out
+    assert "wp <alias>" in out
+    assert "--help-full" in out
+
+    assert _run(monkeypatch, tmp_path, ["--help"]) == 0
     assert "wp <alias>" in capsys.readouterr().out
+
     assert _run(monkeypatch, tmp_path, ["-h"]) == 0
     capsys.readouterr()
     assert _run(monkeypatch, tmp_path, ["-?"]) == 0
     capsys.readouterr()
+
+    # Full help
+    assert _run(monkeypatch, tmp_path, ["--help-full"]) == 0
+    full_out = capsys.readouterr().out
+    assert "Full Reference" in full_out
+    assert "Data Resolution Order" in full_out
+    assert "waypoint.yaml" in full_out
+    assert "history.yaml" in full_out
+    assert "config.yaml" in full_out
+    assert "Shell Protocol Contract" in full_out
+
+    assert _run(monkeypatch, tmp_path, ["help", "--full"]) == 0
+    full_out2 = capsys.readouterr().out
+    assert "Full Reference" in full_out2
+    assert "Data File Specs & Hierarchies" in full_out2
 
 
 def test_usage_error_exits_2(monkeypatch, tmp_path, capsys):
@@ -1082,6 +1103,61 @@ def test_ls_groups_same_path_aliases(monkeypatch, tmp_path, capsys):
     out = capsys.readouterr().out
     assert rc == 0
     assert "alias1 *, alias2" in out
+
+
+def test_cli_uses_cwd_waypoint_yaml(monkeypatch, tmp_path, capsys):
+    local_dir = tmp_path / "local_ws"
+    local_dir.mkdir()
+    local_target = tmp_path / "local_target"
+    local_target.mkdir()
+    (local_dir / "waypoint.yaml").write_text(
+        f"bookmarks:\n  localbm: {local_target}\ndefault: localbm\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(local_dir)
+
+    # test `wp ls`
+    rc = _run(monkeypatch, tmp_path, ["ls"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "localbm" in out
+
+    # test `wp <alias>`
+    rc = _run(monkeypatch, tmp_path, ["localbm"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert out.strip() == str(local_target)
+
+    # test `wp store`
+    rc = _run(monkeypatch, tmp_path, ["store"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert str(local_dir / "waypoint.yaml") in out
+
+
+def test_cli_uses_cwd_history_yaml(monkeypatch, tmp_path, capsys):
+    local_dir = tmp_path / "local_ws"
+    local_dir.mkdir()
+    dest = tmp_path / "somewhere"
+    dest.mkdir()
+    (local_dir / "history.yaml").write_text(
+        f"- {dest}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(local_dir)
+
+    # test `wp history`
+    rc = _run(monkeypatch, tmp_path, ["history"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert str(dest) in out
+
+    # test `wp store`
+    rc = _run(monkeypatch, tmp_path, ["store"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert str(local_dir / "history.yaml") in out
+
 
 
 

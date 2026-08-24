@@ -51,9 +51,10 @@ class Bookmarks:
 
 
 def data_dir() -> Path:
-    """Where waypoint.yaml and history.yaml live.
+    """Where waypoint.yaml and history.yaml live by default.
 
     Resolution order: WP_HOME -> config home -> ~/.waypoint.
+    Individual data files in the current working directory take precedence.
     """
     env = os.environ.get("WP_HOME")
     if env and env.strip():
@@ -65,10 +66,16 @@ def data_dir() -> Path:
 
 
 def bookmarks_path() -> Path:
+    local = Path.cwd() / "waypoint.yaml"
+    if local.is_file():
+        return local
     return data_dir() / "waypoint.yaml"
 
 
 def history_path() -> Path:
+    local = Path.cwd() / "history.yaml"
+    if local.is_file():
+        return local
     return data_dir() / "history.yaml"
 
 

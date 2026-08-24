@@ -110,7 +110,7 @@ def dispatch(cmd: Command, console: Console) -> int:
     if isinstance(cmd, StoreCmd):
         return _store(cmd, console)
     if isinstance(cmd, HelpCmd):
-        return _help(console)
+        return _help(console, full=cmd.full)
     if isinstance(cmd, OpenCmd):
         return _open(cmd.kind, console)
     raise UsageError(f"unknown command: {cmd}")

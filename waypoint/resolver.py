@@ -41,6 +41,8 @@ RESERVED = {
     "store",
     "config",
     "help",
+    "--help",
+    "--help-full",
     "undo",
     "u",
     "U",
@@ -106,7 +108,7 @@ class StoreCmd:
 
 @dataclass
 class HelpCmd:
-    pass
+    full: bool = False
 
 
 @dataclass
@@ -158,9 +160,15 @@ def parse_args(argv: list[str]) -> Command:
     if head == "_record_history":
         _require(rest, 1, "usage: wp _record_history <path>")
         return RecordHistoryCmd(origin=rest[0])
-    if head in ("help", "-h", "-?"):
-        _require(rest, 0, "wp help takes no arguments")
-        return HelpCmd()
+    if head == "--help-full":
+        _require(rest, 0, "wp --help-full takes no arguments")
+        return HelpCmd(full=True)
+    if head in ("help", "--help", "-h", "-?"):
+        if not rest:
+            return HelpCmd(full=False)
+        if len(rest) == 1 and (rest[0] in FULL_FLAGS or rest[0] == "--help-full"):
+            return HelpCmd(full=True)
+        raise UsageError(f"wp {head} takes no arguments")
     if head in ("history", "h"):
         return _parse_history(rest)
     if head in ("undo", "u"):

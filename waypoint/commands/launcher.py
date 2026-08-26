@@ -80,6 +80,7 @@ def _help(console: Console, full: bool = False) -> int:
             "shorthand to bookmark current dir (prompts for alias)"
         )
         console.print("  [cyan]wp rm <alias>[/cyan]          delete a bookmark")
+        console.print("  [cyan]wp mv <alias> <path>[/cyan]  repoint <alias> to a new directory")
         console.print(
             "  [cyan]wp ls, wp list[/cyan]         "
             "list all bookmarks (shows default * and highlights cwd)"
@@ -184,6 +185,7 @@ def _help(console: Console, full: bool = False) -> int:
         "(prompts if omitted, '.' for cwd)"
     )
     console.print("  [cyan]wp rm <alias>[/cyan]               delete a bookmark")
+    console.print("  [cyan]wp mv <alias> <path>[/cyan]       repoint <alias> to a new directory")
     console.print("  [cyan]wp ls, wp list[/cyan]              list all bookmarks")
     console.print(
         "  [cyan]wp set \\[alias|path|~][/cyan]       set default (clipboard -> cwd -> temp)"

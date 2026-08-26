@@ -108,6 +108,7 @@ def test_wrapper_protocol_invariant(monkeypatch, tmp_path, capsys):
         ["-vs"],
         ["rm", "web"],
         ["rm", "dev"],
+        ["mv", "dev", str(target)],
     ]
     for argv in cases:
         rc = _run(monkeypatch, tmp_path, argv)
@@ -1157,6 +1158,181 @@ def test_cli_uses_cwd_history_yaml(monkeypatch, tmp_path, capsys):
     out = capsys.readouterr().out
     assert rc == 0
     assert str(local_dir / "history.yaml") in out
+
+
+# --- delete + recreate scenarios -------------------------------------------
+
+
+def test_default_auto_restore_on_readd(monkeypatch, tmp_path, capsys):
+    """rm default, add same alias back, wp (bare) navigates successfully."""
+    target = _add_dev(monkeypatch, tmp_path)
+    assert _run(monkeypatch, tmp_path, ["add", "dev", str(target)]) == 0
+    assert _run(monkeypatch, tmp_path, ["default", "dev"]) == 0
+    capsys.readouterr()
+
+    # Remove default
+    rc = _run(monkeypatch, tmp_path, ["rm", "dev"])
+    assert rc == 0
+    assert store.load_bookmarks().default is None
+    capsys.readouterr()
+
+    # Recreate the alias -- should auto-restore as default
+    rc = _run(monkeypatch, tmp_path, ["add", "dev", str(target)])
+    assert rc == 0
+    assert store.load_bookmarks().default == "dev"
+    capsys.readouterr()
+
+    # wp (bare) should navigate to the recreated target
+    rc = _run(monkeypatch, tmp_path, [])
+    out = capsys.readouterr()
+    assert rc == 0
+    assert out.out.strip() == str(target)
+
+
+def test_rm_then_recreate_nav_works(monkeypatch, tmp_path, capsys):
+    """After rm + recreate, wp <alias> still navigates."""
+    target = _add_dev(monkeypatch, tmp_path)
+    assert _run(monkeypatch, tmp_path, ["add", "dev", str(target)]) == 0
+    capsys.readouterr()
+
+    assert _run(monkeypatch, tmp_path, ["rm", "dev"]) == 0
+    capsys.readouterr()
+
+    assert _run(monkeypatch, tmp_path, ["add", "dev", str(target)]) == 0
+    capsys.readouterr()
+
+    rc = _run(monkeypatch, tmp_path, ["dev"])
+    out = capsys.readouterr()
+    assert rc == 0
+    assert out.out.strip() == str(target)
+
+
+def test_record_history_for_missing_dir(monkeypatch, tmp_path, capsys):
+    """_record_history should succeed even for a dir that doesn't exist."""
+    gone = tmp_path / "gone"
+    # Don't create the directory
+    rc = _run(monkeypatch, tmp_path, ["_record_history", str(gone)])
+    assert rc == 0
+    # Entry should be recorded even though dir doesn't exist
+    assert str(gone) in store.load_history()
+
+
+def test_undo_after_dir_delete_recreate(monkeypatch, tmp_path, capsys):
+    """Full round-trip: nav to dir, delete it, recreate it, undo works."""
+    target = _add_dev(monkeypatch, tmp_path)
+    assert _run(monkeypatch, tmp_path, ["add", "dev", str(target)]) == 0
+    capsys.readouterr()
+
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.chdir(home)
+
+    # Navigate to dev
+    rc = _run(monkeypatch, tmp_path, ["dev"])
+    assert rc == 0
+    capsys.readouterr()
+
+    # Record arrival (wrapper behavior)
+    monkeypatch.chdir(target)
+    assert _run(monkeypatch, tmp_path, ["_record_history", str(target)]) == 0
+    capsys.readouterr()
+
+    # Move CWD away so we can delete the target
+    monkeypatch.chdir(home)
+
+    # Delete the target directory
+    import shutil
+    shutil.rmtree(target)
+
+    # Recreate it
+    target.mkdir()
+
+    # Undo should navigate back to home
+    rc = _run(monkeypatch, tmp_path, ["undo"])
+    out = capsys.readouterr()
+    assert rc == 0
+    assert out.out.strip() == str(home)
+
+
+# --- wp mv -----------------------------------------------------------------
+
+
+def test_mv_repoints_and_navigates(monkeypatch, tmp_path, capsys):
+    """wp mv changes path, wp <alias> navigates to new path."""
+    old = _add_dev(monkeypatch, tmp_path)
+    assert _run(monkeypatch, tmp_path, ["add", "dev", str(old)]) == 0
+    capsys.readouterr()
+
+    new = tmp_path / "newdev"
+    new.mkdir()
+    rc = _run(monkeypatch, tmp_path, ["mv", "dev", str(new)])
+    out = capsys.readouterr()
+    assert rc == 0
+    assert "Moved dev" in out.out
+    assert store.load_bookmarks().bookmarks["dev"] == str(new)
+
+    rc = _run(monkeypatch, tmp_path, ["dev"])
+    out = capsys.readouterr()
+    assert rc == 0
+    assert out.out.strip() == str(new)
+
+
+def test_mv_preserves_default_integration(monkeypatch, tmp_path, capsys):
+    """wp mv on the default alias preserves default status."""
+    old = _add_dev(monkeypatch, tmp_path)
+    assert _run(monkeypatch, tmp_path, ["add", "dev", str(old)]) == 0
+    assert _run(monkeypatch, tmp_path, ["default", "dev"]) == 0
+    capsys.readouterr()
+
+    new = tmp_path / "newdev"
+    new.mkdir()
+    assert _run(monkeypatch, tmp_path, ["mv", "dev", str(new)]) == 0
+    capsys.readouterr()
+    assert store.load_bookmarks().default == "dev"
+
+    rc = _run(monkeypatch, tmp_path, [])
+    out = capsys.readouterr()
+    assert rc == 0
+    assert out.out.strip() == str(new)
+
+
+def test_mv_unknown_alias_errors(monkeypatch, tmp_path, capsys):
+    rc = _run(monkeypatch, tmp_path, ["mv", "nope", str(tmp_path)])
+    capsys.readouterr()
+    assert rc == 1
+
+
+def test_mv_nonexistent_path_errors(monkeypatch, tmp_path, capsys):
+    target = _add_dev(monkeypatch, tmp_path)
+    assert _run(monkeypatch, tmp_path, ["add", "dev", str(target)]) == 0
+    capsys.readouterr()
+
+    rc = _run(monkeypatch, tmp_path, ["mv", "dev", str(tmp_path / "nope")])
+    out = capsys.readouterr()
+    assert rc == 1
+    assert "not a directory" in out.out
+
+
+def test_mv_usage_errors(monkeypatch, tmp_path, capsys):
+    rc = _run(monkeypatch, tmp_path, ["mv"])
+    capsys.readouterr()
+    assert rc == 2
+
+    rc = _run(monkeypatch, tmp_path, ["mv", "onlyalias"])
+    capsys.readouterr()
+    assert rc == 2
+
+
+def test_mv_is_not_interactive(monkeypatch, tmp_path, capsys):
+    """mv must not prompt -- wrapper contract: no stdin needed."""
+    target = _add_dev(monkeypatch, tmp_path)
+    assert _run(monkeypatch, tmp_path, ["add", "dev", str(target)]) == 0
+    capsys.readouterr()
+
+    new = tmp_path / "newdev"
+    new.mkdir()
+    rc = _run(monkeypatch, tmp_path, ["mv", "dev", str(new)])
+    assert rc == 0
 
 
 

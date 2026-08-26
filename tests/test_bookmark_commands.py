@@ -5,9 +5,9 @@ import types
 from rich.console import Console
 
 from waypoint import clipboard, store
-from waypoint.commands.bookmarks import _add, _get, _ls, _rm, _row_style
-from waypoint.constants import EXIT_OK
-from waypoint.resolver import AddCmd, GetCmd, RmCmd
+from waypoint.commands.bookmarks import _add, _get, _ls, _mv, _rm, _row_style
+from waypoint.constants import EXIT_ERROR, EXIT_OK
+from waypoint.resolver import AddCmd, GetCmd, MvCmd, RmCmd
 
 
 def test_add_explicit_alias_and_path(tmp_path, capsys):
@@ -139,3 +139,190 @@ def test_ls_highlights_current_dir(monkeypatch, tmp_path, capsys):
     out = capsys.readouterr().out
     assert rc == EXIT_OK
     assert "here" in out
+
+
+# --- delete + recreate scenarios -------------------------------------------
+
+
+def test_rm_default_then_recreate_restores_default(tmp_path, capsys):
+    """Removing the default alias and re-adding it auto-restores the default."""
+    console = Console()
+    target = tmp_path / "proj"
+    target.mkdir()
+    b = store.Bookmarks(bookmarks={"proj": str(target)}, default="proj")
+    store.save_bookmarks(b)
+
+    cmd = RmCmd(alias="proj")
+    rc = _rm(cmd, console)
+    assert rc == EXIT_OK
+    b = store.load_bookmarks()
+    assert b.default is None
+
+    cmd = AddCmd(alias="proj", path=str(target))
+    rc = _add(cmd, console)
+    assert rc == EXIT_OK
+    b = store.load_bookmarks()
+    assert b.default == "proj"
+    assert b.bookmarks["proj"] == str(target)
+
+
+def test_rm_nondefault_then_recreate_does_not_set_default(tmp_path, capsys):
+    """Removing a non-default alias and re-adding it does not touch the default."""
+    console = Console()
+    dev = tmp_path / "dev"
+    web = tmp_path / "web"
+    dev.mkdir()
+    web.mkdir()
+    b = store.Bookmarks(
+        bookmarks={"dev": str(dev), "web": str(web)}, default="dev"
+    )
+    store.save_bookmarks(b)
+
+    cmd = RmCmd(alias="web")
+    rc = _rm(cmd, console)
+    assert rc == EXIT_OK
+
+    cmd = AddCmd(alias="web", path=str(web))
+    rc = _add(cmd, console)
+    assert rc == EXIT_OK
+    b = store.load_bookmarks()
+    assert b.default == "dev"
+    assert "web" in b.bookmarks
+
+
+def test_rm_default_then_explicit_default_clears_prev(tmp_path, capsys):
+    """Explicitly setting a new default clears _prev_default."""
+    console = Console()
+    dev = tmp_path / "dev"
+    web = tmp_path / "web"
+    dev.mkdir()
+    web.mkdir()
+    b = store.Bookmarks(
+        bookmarks={"dev": str(dev), "web": str(web)}, default="dev"
+    )
+    store.save_bookmarks(b)
+
+    cmd = RmCmd(alias="dev")
+    rc = _rm(cmd, console)
+    assert rc == EXIT_OK
+    b = store.load_bookmarks()
+    assert b._prev_default == "dev"
+
+    # Explicitly setting a new default clears _prev_default
+    from waypoint.commands.bookmarks import _set_default
+    rc = _set_default("web", console)
+    assert rc == EXIT_OK
+    b = store.load_bookmarks()
+    assert b.default == "web"
+    assert b._prev_default is None
+
+
+def test_rm_then_recreate_different_alias_no_restore(tmp_path, capsys):
+    """Re-adding under a different name does not restore the old default."""
+    console = Console()
+    target = tmp_path / "proj"
+    target.mkdir()
+    b = store.Bookmarks(bookmarks={"proj": str(target)}, default="proj")
+    store.save_bookmarks(b)
+
+    cmd = RmCmd(alias="proj")
+    rc = _rm(cmd, console)
+    assert rc == EXIT_OK
+
+    cmd = AddCmd(alias="proj2", path=str(target))
+    rc = _add(cmd, console)
+    assert rc == EXIT_OK
+    b = store.load_bookmarks()
+    assert b.default is None
+    assert "proj2" in b.bookmarks
+
+
+# --- wp mv tests -----------------------------------------------------------
+
+
+def test_mv_repoints_bookmark(tmp_path, capsys):
+    console = Console()
+    old = tmp_path / "old"
+    new = tmp_path / "new"
+    old.mkdir()
+    new.mkdir()
+    b = store.Bookmarks(bookmarks={"proj": str(old)}, default=None)
+    store.save_bookmarks(b)
+
+    cmd = MvCmd(alias="proj", new_path=str(new))
+    rc = _mv(cmd, console)
+    assert rc == EXIT_OK
+    b = store.load_bookmarks()
+    assert b.bookmarks["proj"] == str(new)
+
+
+def test_mv_preserves_default(tmp_path, capsys):
+    console = Console()
+    old = tmp_path / "old"
+    new = tmp_path / "new"
+    old.mkdir()
+    new.mkdir()
+    b = store.Bookmarks(bookmarks={"proj": str(old)}, default="proj")
+    store.save_bookmarks(b)
+
+    cmd = MvCmd(alias="proj", new_path=str(new))
+    rc = _mv(cmd, console)
+    assert rc == EXIT_OK
+    b = store.load_bookmarks()
+    assert b.default == "proj"
+    assert b.bookmarks["proj"] == str(new)
+
+
+def test_mv_nonexistent_alias_errors(tmp_path, capsys):
+    console = Console()
+    target = tmp_path / "somewhere"
+    target.mkdir()
+
+    cmd = MvCmd(alias="nope", new_path=str(target))
+    rc = _mv(cmd, console)
+    assert rc == EXIT_ERROR
+
+
+def test_mv_nonexistent_path_errors(tmp_path, capsys):
+    console = Console()
+    b = store.Bookmarks(bookmarks={"proj": str(tmp_path)}, default=None)
+    store.save_bookmarks(b)
+
+    cmd = MvCmd(alias="proj", new_path=str(tmp_path / "nope"))
+    rc = _mv(cmd, console)
+    assert rc == EXIT_ERROR
+
+
+def test_row_style_dead_is_dimmed():
+    assert _row_style(has_default=True, is_cwd=True, is_alive=False) == "dim"
+    assert _row_style(has_default=False, is_cwd=False, is_alive=False) == "dim"
+    assert _row_style(has_default=True, is_cwd=False, is_alive=True) == "bold green"
+
+
+def test_ls_flags_missing_path(tmp_path, capsys):
+    console = Console()
+    gone = tmp_path / "gone"
+    alive = tmp_path / "alive"
+    alive.mkdir()
+    b = store.Bookmarks(
+        bookmarks={"dead": str(gone), "live": str(alive)}, default=None
+    )
+    store.save_bookmarks(b)
+
+    rc = _ls(console)
+    out = capsys.readouterr().out
+    assert rc == EXIT_OK
+    assert "MISSING" in out
+    assert "1 bookmark(s) point to missing paths" in out
+
+
+def test_ls_all_alive_no_warning(tmp_path, capsys):
+    console = Console()
+    b = store.Bookmarks(bookmarks={"dev": str(tmp_path)}, default=None)
+    store.save_bookmarks(b)
+
+    rc = _ls(console)
+    out = capsys.readouterr().out
+    assert rc == EXIT_OK
+    assert "MISSING" not in out
+    assert "point to missing" not in out

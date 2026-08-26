@@ -28,11 +28,11 @@ def test_record_history_cli_behavior(monkeypatch, tmp_path, capsys):
     assert rc == 0
     assert store.load_history() == [str(d1)]
 
-    # 3. Ignores non-directory
+    # 3. Records even non-existent dirs (stale entries filtered at read time)
     rc = cli.main(["_record_history", str(tmp_path / "nonexistent")])
     capsys.readouterr()
     assert rc == 0
-    assert store.load_history() == [str(d1)]
+    assert store.load_history() == [str(d1), str(tmp_path / "nonexistent")]
 
     # 4. Usage error if no arg provided
     rc = cli.main(["_record_history"])

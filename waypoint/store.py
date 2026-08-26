@@ -48,6 +48,7 @@ class BookmarkNotFoundError(Exception):
 class Bookmarks:
     bookmarks: dict[str, str]
     default: str | None
+    _prev_default: str | None = None
 
 
 def data_dir() -> Path:
@@ -141,15 +142,19 @@ def load_bookmarks() -> Bookmarks:
     default = data.get("default")
     if default is not None and not isinstance(default, str):
         raise StoreError("waypoint.yaml `default` must be a bookmark alias")
-    return Bookmarks(bookmarks=bookmarks, default=default)
+    prev_default = data.get("_prev_default")
+    if prev_default is not None and not isinstance(prev_default, str):
+        prev_default = None
+    return Bookmarks(bookmarks=bookmarks, default=default, _prev_default=prev_default)
 
 
 def save_bookmarks(b: Bookmarks) -> None:
     """Write waypoint.yaml atomically (tmp file + replace, so a crash can't truncate it)."""
     path = bookmarks_path()
-    payload = yaml.safe_dump(
-        {"bookmarks": b.bookmarks, "default": b.default}, sort_keys=False
-    )
+    data: dict[str, object] = {"bookmarks": b.bookmarks, "default": b.default}
+    if b._prev_default is not None:
+        data["_prev_default"] = b._prev_default
+    payload = yaml.safe_dump(data, sort_keys=False)
     _atomic_write(path, payload)
 
 

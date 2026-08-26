@@ -10,6 +10,7 @@ __all__ = [
     "NavCmd",
     "AddCmd",
     "RmCmd",
+    "MvCmd",
     "LsCmd",
     "DefaultCmd",
     "SetCmd",
@@ -33,6 +34,7 @@ RESERVED = {
     "_record_history",
     "add",
     "rm",
+    "mv",
     "ls",
     "list",
     "default",
@@ -74,6 +76,12 @@ class AddCmd:
 @dataclass
 class RmCmd:
     alias: str
+
+
+@dataclass
+class MvCmd:
+    alias: str
+    new_path: str
 
 
 @dataclass
@@ -136,6 +144,7 @@ Command = (
     NavCmd
     | AddCmd
     | RmCmd
+    | MvCmd
     | LsCmd
     | DefaultCmd
     | SetCmd
@@ -186,6 +195,10 @@ def parse_args(argv: list[str]) -> Command:
     if head == "rm":
         _require(rest, 1, "usage: wp rm <alias>")
         return RmCmd(alias=rest[0])
+    if head == "mv":
+        if len(rest) != 2:
+            raise UsageError("usage: wp mv <alias> <new_path>")
+        return MvCmd(alias=rest[0], new_path=rest[1])
     if head == "default":
         _require(rest, 1, "usage: wp default <alias|path>")
         return DefaultCmd(arg=rest[0])

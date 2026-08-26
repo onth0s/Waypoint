@@ -12,9 +12,9 @@ from waypoint import clipboard, store
 from waypoint.constants import EXIT_ERROR, EXIT_OK, TEMP_SLOT
 from waypoint.output import err, hint, ok, warn
 from waypoint.prompts import prompt_name
-from waypoint.resolver import AddCmd, DefaultCmd, GetCmd, RmCmd, SetCmd, looks_like_path
+from waypoint.resolver import AddCmd, DefaultCmd, GetCmd, MvCmd, RmCmd, SetCmd, looks_like_path
 
-__all__ = ["_add", "_rm", "_ls", "_default", "_set", "_get", "_set_temp_slot"]
+__all__ = ["_add", "_rm", "_ls", "_default", "_set", "_get", "_set_temp_slot", "_mv"]
 
 
 def _add(cmd: AddCmd, console: Console) -> int:
@@ -32,6 +32,9 @@ def _add(cmd: AddCmd, console: Console) -> int:
         return EXIT_ERROR
     name = prompt_name(b, explicit_alias, console)
     b.bookmarks[name] = target
+    if b.default is None and b._prev_default == name:
+        b.default = name
+        b._prev_default = None
     store.save_bookmarks(b)
     ok(console, f"Saved {name} -> {target}")
     return EXIT_OK
@@ -52,6 +55,7 @@ def _rm(cmd: RmCmd, console: Console) -> int:
     was_default = b.default == alias
     del b.bookmarks[alias]
     if was_default:
+        b._prev_default = alias
         b.default = None
     store.save_bookmarks(b)
     ok(console, f"Removed {alias}")
@@ -60,8 +64,26 @@ def _rm(cmd: RmCmd, console: Console) -> int:
     return EXIT_OK
 
 
-def _row_style(has_default: bool, is_cwd: bool) -> str | None:
+def _mv(cmd: MvCmd, console: Console) -> int:
+    alias = cmd.alias
+    new_path = os.path.abspath(os.path.expanduser(cmd.new_path))
+    b = store.load_bookmarks()
+    if alias not in b.bookmarks:
+        err(console, f"No bookmark {alias!r}.")
+        return EXIT_ERROR
+    if not os.path.isdir(new_path):
+        err(console, f"not a directory: {new_path}")
+        return EXIT_ERROR
+    b.bookmarks[alias] = new_path
+    store.save_bookmarks(b)
+    ok(console, f"Moved {alias} -> {new_path}")
+    return EXIT_OK
+
+
+def _row_style(has_default: bool, is_cwd: bool, is_alive: bool = True) -> str | None:
     """Row style for a bookmark: default marker, current-dir highlight, or both."""
+    if not is_alive:
+        return "dim"
     if has_default and is_cwd:
         return "bold green on bright_black"
     if is_cwd:
@@ -105,15 +127,27 @@ def _ls(console: Console) -> int:
         path = path_map[norm]
         has_default = any(a == b.default for a in aliases)
         is_cwd = os.path.normcase(os.path.abspath(path)) == cwd
+        is_alive = os.path.isdir(path)
         formatted_aliases = [
             f"{a} *" if a == b.default else a for a in aliases
         ]
         alias_str = ", ".join(formatted_aliases)
-        row_style = _row_style(has_default, is_cwd)
-        table.add_row(alias_str, path, style=row_style)
+        display_path = f"{path} [red][MISSING][/red]" if not is_alive else path
+        row_style = _row_style(has_default, is_cwd, is_alive)
+        table.add_row(alias_str, display_path, style=row_style)
 
     console.print(table)
-    hint(console, "* = default bookmark")
+    missing_count = sum(
+        1 for norm in path_groups if not os.path.isdir(path_map[norm])
+    )
+    if missing_count:
+        warn(
+            console,
+            f"{missing_count} bookmark(s) point to missing paths -- "
+            "use [bold]wp mv <alias> <new_path>[/bold] to repoint",
+        )
+    else:
+        hint(console, "* = default bookmark")
     return EXIT_OK
 
 
@@ -124,6 +158,7 @@ def _set_temp_slot(target: str, b: store.Bookmarks, console: Console) -> int:
         return EXIT_ERROR
     b.bookmarks[TEMP_SLOT] = target
     b.default = TEMP_SLOT
+    b._prev_default = None
     store.save_bookmarks(b)
     ok(console, f"Default is now {TEMP_SLOT} -> {target}")
     return EXIT_OK
@@ -137,6 +172,7 @@ def _set_default(arg: str | None, console: Console) -> int:
         return _set_temp_slot(clipboard.clipboard_path() or os.getcwd(), b, console)
     if arg in b.bookmarks:
         b.default = arg
+        b._prev_default = None
         store.save_bookmarks(b)
         ok(console, f"Default is now {arg}")
         return EXIT_OK

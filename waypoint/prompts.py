@@ -6,7 +6,7 @@ from rich.console import Console
 from rich.prompt import Prompt
 
 from waypoint import store
-from waypoint.output import err
+from waypoint.output import err, hint
 from waypoint.resolver import UsageError, validate_alias
 
 
@@ -49,6 +49,7 @@ def prompt_name(b: store.Bookmarks, explicit: str | None, console: Console) -> s
             name = None
             continue
         if name in b.bookmarks:
+            hint(console, f"Hint: [bold]wp mv {name} <new_path>[/bold] to repoint instead.")
             result = _resolve_collision(name, b, console)
             if result is None:
                 name = None

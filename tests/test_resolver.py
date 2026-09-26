@@ -3,6 +3,7 @@
 import pytest
 
 from waypoint.resolver import (
+    FORCE_FLAG,
     RESERVED,
     AddCmd,
     ConfigCmd,
@@ -176,10 +177,48 @@ def test_validate_alias_accepts_plain_name():
     validate_alias("dev")  # no exception
 
 
+@pytest.mark.parametrize(
+    ("argv", "expected"),
+    [
+        ([], NavCmd(alias=None, force=False)),
+        (["dev"], NavCmd(alias="dev", force=False)),
+        (["-F"], NavCmd(alias=None, force=True)),
+        (["-F", "dev"], NavCmd(alias="dev", force=True)),
+        (["dev", "-F"], NavCmd(alias="dev", force=True)),
+    ],
+)
+def test_parse_force_flag(argv, expected):
+    assert parse_args(argv) == expected
+
+
+@pytest.mark.parametrize("argv", [["-F", "a", "b"]])
+def test_parse_force_flag_rejects_extra_args(argv):
+    with pytest.raises(UsageError):
+        parse_args(argv)
+
+
+@pytest.mark.parametrize("argv", [["ls", "-F"], ["undo", "-F"], ["add", "-F"]])
+def test_force_flag_does_not_hijack_reserved_commands(argv):
+    """-F is a nav flag only. A reserved head must still reach its own subcommand,
+    which either rejects the stray flag or ignores it -- never resolve to nav."""
+    try:
+        cmd = parse_args(argv)
+    except UsageError:
+        return  # rejecting the stray flag is the desired outcome
+    assert not isinstance(cmd, NavCmd)
+
+
+def test_force_flag_is_not_a_valid_alias_name():
+    with pytest.raises(UsageError):
+        validate_alias(FORCE_FLAG)
+
+
 def test_reserved_set_matches_parser():
     # Every reserved keyword must dispatch to a subcommand or a usage error,
     # never to nav (greedy alias rule must not swallow reserved words).
     for keyword in RESERVED:
+        if keyword == FORCE_FLAG:
+            continue  # -F is a nav flag, not a subcommand: `wp -F` navigates.
         try:
             cmd = parse_args([keyword])
         except UsageError:

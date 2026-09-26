@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from rich.console import Console
 from rich.markup import escape
-from rich.prompt import Prompt
+from rich.prompt import Confirm, DefaultType, Prompt
+from rich.text import Text
 
 from waypoint import store
 from waypoint.output import err, hint
@@ -13,6 +14,35 @@ from waypoint.resolver import UsageError, validate_alias
 
 class _Cancelled(Exception):
     """Interactive prompt aborted by the user (EOF / Ctrl+C / 'cancel')."""
+
+
+class _YesNo(Confirm):
+    """Confirm that renders the conventional ``[y/N]``.
+
+    rich's stock Confirm joins ``self.choices`` verbatim, giving a flat ``[y/n]``
+    and then repeating the default as ``(n)``. ``choices`` stays lowercase here
+    so the inherited process_response keeps matching input case-insensitively.
+    """
+
+    def make_prompt(self, default: DefaultType) -> Text:
+        yes, no = self.choices
+        if default is False:
+            yes, no = "y", "N"
+        elif default is True:
+            yes, no = "Y", "n"
+        prompt = self.prompt.copy()
+        prompt.end = ""
+        prompt.append(f" [{yes}/{no}]", "prompt.choices")
+        prompt.append(self.prompt_suffix)
+        return prompt
+
+
+def confirm_create(target: str) -> bool:
+    """Ask to create a missing directory. False on decline; raises _Cancelled on abort."""
+    try:
+        return _YesNo.ask(f"Create [bold]{escape(target)}[/bold]?", default=False)
+    except (EOFError, KeyboardInterrupt):
+        raise _Cancelled from None
 
 
 def _resolve_collision(name: str, b: store.Bookmarks, console: Console) -> str | None:

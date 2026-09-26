@@ -51,11 +51,43 @@ def test_interactive_commands_list_synced_with_install_ps1():
     raw_cmds = match.group(1)
     extracted_cmds = set(re.findall(r"['\"](.*?)['\"]", raw_cmds))
 
-    # Today: only `add` invokes Prompt.ask / prompt_name
+    # Today: only `add` invokes Prompt.ask / prompt_name as a *command*. The -F
+    # nav flag also prompts, but it is a flag rather than a subcommand, so the
+    # wrapper branches on it separately (see the force-flag test below).
     expected_cmds = {"add"}
     assert extracted_cmds == expected_cmds, (
         f"$interactiveCmds in install.ps1 is {extracted_cmds}, "
         f"expected {expected_cmds}"
+    )
+
+
+def test_install_ps1_runs_force_flag_live_with_nav_side_channel():
+    r"""`wp <alias> -F` prompts to create a missing directory, so it must run live
+    like `wp add` -- a captured stdout buffers the prompt and the user types blind.
+    A live process cannot hand its path back over that captured stdout, so the
+    wrapper needs the WP_NAV_OUT side channel to learn where to cd."""
+    text = (PROJECT_DIR / "install.ps1").read_text(encoding="utf-8")
+    assert "`$force = `$args -contains '-F'" in text, "missing -F live detection"
+    assert "`$force -or (`$args.Count -gt 0" in text, (
+        "-F must be able to force the live branch on its own"
+    )
+    assert "`$env:WP_NAV_OUT = `$navOut" in text, "side channel is never exported"
+    assert "Set-WaypointLocation -Literal `$target" in text, (
+        "wrapper never cds to the handed-off target"
+    )
+    # The temp file must not outlive the call.
+    assert "Remove-Item -LiteralPath `$navOut -Force" in text
+
+
+def test_nav_side_channel_env_var_matches_install_ps1():
+    """WP_NAV_OUT is a Python<->PowerShell contract. A rename on either side alone
+    silently breaks the cd after `wp <alias> -F`, because the Python side would
+    fall back to stdout and the live wrapper cannot read it."""
+    from waypoint.commands.nav import NAV_OUT_ENV
+
+    text = (PROJECT_DIR / "install.ps1").read_text(encoding="utf-8")
+    assert NAV_OUT_ENV in text, (
+        f"install.ps1 never references {NAV_OUT_ENV}; the -F handoff will not work"
     )
 
 

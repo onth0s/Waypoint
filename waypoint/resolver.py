@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 __all__ = [
     "RESERVED",
+    "FORCE_FLAG",
     "Command",
     "NavCmd",
     "AddCmd",
@@ -27,6 +28,13 @@ __all__ = [
     "validate_alias",
     "looks_like_path",
 ]
+
+# -F is a nav flag rather than a subcommand: `wp <alias> -F` offers to create a
+# missing target directory. Listed in RESERVED so validate_alias rejects it as a
+# bookmark name, but handled before the reserved dispatch in parse_args --
+# test_reserved_set_matches_parser exempts it, since a flag may legitimately
+# resolve to nav.
+FORCE_FLAG = "-F"
 
 # `config` joins README's reserved list so that `wp config home <path>` (README,
 # Data section) parses instead of being treated as a bookmark named "config".
@@ -55,6 +63,7 @@ RESERVED = {
     "-vs",
     "-h",
     "-?",
+    FORCE_FLAG,
 }
 
 
@@ -65,6 +74,7 @@ class UsageError(Exception):
 @dataclass
 class NavCmd:
     alias: str | None = None
+    force: bool = False  # -F: offer to create the target directory if missing
 
 
 @dataclass
@@ -164,7 +174,18 @@ def parse_args(argv: list[str]) -> Command:
     if not argv:
         return NavCmd()
     head, rest = argv[0], argv[1:]
+    if head == FORCE_FLAG:
+        # Bare `wp -F` means the default bookmark; `wp -F <alias>` names one.
+        rest = [a for a in rest if a != FORCE_FLAG]
+        if len(rest) > 1:
+            raise UsageError("usage: wp [-F] [<alias>]")
+        return NavCmd(alias=rest[0] if rest else None, force=True)
     if head not in RESERVED:
+        # Greedy alias rule. -F is stripped here so `wp <alias> -F` parses; a
+        # reserved head falls through to the subcommand dispatch below, so
+        # `wp ls -F` still reaches `ls` and rejects the stray flag.
+        if FORCE_FLAG in rest:
+            return NavCmd(alias=head, force=True)
         return NavCmd(alias=head)
     if head == "_record_history":
         _require(rest, 1, "usage: wp _record_history <path>")

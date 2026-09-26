@@ -18,7 +18,7 @@ Adds a `wp` function to your PowerShell `$PROFILE`. The installer uses `pip inst
 ```
 wp              → go to default bookmark
 wp <alias>      → go to bookmark named <alias>
-wp <alias> -F   → if the target dir is missing, ask to create it ([y/N]), then go
+wp <alias> -F   → if the target dir is missing, create it (no prompt), then go
 wp undo [N]     → go to history row N (0 = current dir, 1 = last jump; default 1)
 wp U / wp uu    → aliases for `wp undo 0`
 wp history [N]  → show the last N directories (incl. current; default 5)
@@ -28,12 +28,13 @@ wp history --all → show the full navigation history
 `wp` is always a shell `cd`. No subcommand needed.
 
 When a bookmark points at a directory that no longer exists, plain `wp <alias>`
-says so and points at the `-F` recovery. `wp <alias> -F` asks
-`Create <path>? [y/N]` and creates the directory (with parents) on yes. `-F` is a
-flag, not a subcommand, so it only applies to navigation: `wp ls -F` is still a
-usage error. Because `-F` prompts, the wrapper runs it *live* rather than
-capturing stdout, and the resolved path comes back through the `WP_NAV_OUT` temp
-file instead — see [Output & styling](#output--styling).
+says so and points at the `-F` recovery. `wp <alias> -F` creates the directory,
+parents included, and reports it as `Created <alias> -> <path>`. It never prompts:
+the flag *is* the consent, which keeps it usable from scripts and aliases. `-F` is
+a flag, not a subcommand, so it only applies to navigation — `wp ls -F` is still a
+usage error. Because `-F` prints a success line, stdout is no longer a single bare
+path, so the wrapper runs it *live* and the resolved path returns through the
+`WP_NAV_OUT` temp file instead — see [Output & styling](#output--styling).
 
 Every directory change records where you *came from* **and** where you *arrived*
 (both deduped), so the newest persistent history entry is always the current
@@ -105,12 +106,12 @@ All human-facing output is rendered with `rich` and colorized (AGENTS.md); the `
 
 The one sanctioned exception is navigation: `wp <alias>` and `wp undo` print the bare resolved path as the *only* stdout line, never styled, so the wrapper can `Set-Location` there — a bare existing path is the wrapper's cd discriminator.
 
-`wp <alias> -F` is the awkward case: it must prompt (so it runs live, unbuffered),
-but a live process cannot hand its path back over the captured stdout the cd
-protocol depends on. The wrapper therefore sets `WP_NAV_OUT` to a temp file before
-invoking it, the CLI writes the resolved path there instead of stdout, and the
-wrapper reads it, `Set-Location`s, and deletes the file. The env var name is a
-Python↔PowerShell contract, enforced by
+`wp <alias> -F` is the awkward case: it reports the directory it created, so stdout
+carries a success line and the single-bare-line cd protocol can no longer read the
+target. The wrapper therefore sets `WP_NAV_OUT` to a temp file before invoking it,
+the CLI writes the resolved path there instead of stdout, and the wrapper reads it,
+`Set-Location`s, and deletes the file. The env var name is a Python↔PowerShell
+contract, enforced by
 `tests/test_wrapper_contract.py::test_nav_side_channel_env_var_matches_install_ps1`.
 
 ## Design: reserved keywords vs aliases
@@ -122,7 +123,7 @@ The parser is greedy on aliases. `wp <anything>` resolves as:
 
 This means `wp dev` goes to the "dev" bookmark. `wp add` runs the add subcommand. No disambiguation needed — reserved words are a small, closed set.
 
-`-F` is the one reserved word that is a *flag* rather than a subcommand: it is checked before the reserved dispatch, so bare `wp -F` and `wp <alias> -F` both mean "navigate, creating the dir if asked". A reserved head never reaches it, which is why `wp ls -F` is a usage error rather than a navigation.
+`-F` is the one reserved word that is a *flag* rather than a subcommand: it is checked before the reserved dispatch, so bare `wp -F` and `wp <alias> -F` both mean "navigate, creating the directory if it is missing". A reserved head never reaches it, which is why `wp ls -F` is a usage error rather than a navigation.
 
 Reserved keywords: `add`, `rm`, `ls`, `list`, `default`, `set`, `get`, `store`, `config`, `help`, `--help`, `--help-full`, `undo`, `u`, `U`, `uu`, `history`, `h`, `.`, `-vs`, `-h`, `-?`, `-F` (plus `_record_history`, reserved for internal wrapper use)
 

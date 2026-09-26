@@ -49,7 +49,7 @@ def _help(console: Console, full: bool = False) -> int:
         console.print("  [cyan]wp <alias>[/cyan]             go to bookmark named <alias>")
         console.print(
             "  [cyan]wp <alias> \\-F[/cyan]          "
-            "if the target is missing, ask to create it, then go"
+            "create the missing target dir (no prompt), then go"
         )
         console.print(
             "  [cyan]wp undo \\[N][/cyan]            go to history row N "
@@ -164,9 +164,12 @@ def _help(console: Console, full: bool = False) -> int:
             "  - Interactive commands (e.g. `wp add`) run live to prevent prompt buffering."
         )
         console.print(
-            "  - `wp <alias> -F` also runs live (it prompts), so it returns the navigation"
+            "  - `wp <alias> -F` also runs live: it prints a success line, so stdout is"
         )
-        console.print("    target through the WP_NAV_OUT temp file instead of stdout.")
+        console.print(
+            "    not a single bare path. Its target comes back through the WP_NAV_OUT"
+        )
+        console.print("    temp file instead.")
         console.print()
         console.print("[bold cyan]Help[/bold cyan]")
         console.print("  [cyan]wp help, wp --help, -h, -?[/cyan]  show usage summary")
@@ -180,7 +183,7 @@ def _help(console: Console, full: bool = False) -> int:
     console.print("  [cyan]wp <alias>[/cyan]                  go to bookmark named <alias>")
     console.print(
         "  [cyan]wp <alias> \\-F[/cyan]               "
-        "ask to create a missing target dir, then go"
+        "create a missing target dir (no prompt), then go"
     )
     console.print(
         "  [cyan]wp undo \\[N][/cyan]                 go to history row N "

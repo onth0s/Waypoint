@@ -11,14 +11,13 @@ from rich.markup import escape
 from waypoint import store
 from waypoint.constants import EXIT_ERROR, EXIT_OK
 from waypoint.output import err, hint, ok
-from waypoint.prompts import confirm_create
 from waypoint.resolver import FORCE_FLAG, NavCmd
 
 __all__ = [
     "_nav",
     "_default_target",
     "_require_dir",
-    "_offer_create",
+    "_create_dir",
     "_emit_target",
     "_record_origin",
     "NAV_OUT_ENV",
@@ -60,7 +59,7 @@ def _nav(cmd: NavCmd, console: Console) -> int:
         if not cmd.force:
             _require_dir(target, label, console)
             return EXIT_ERROR
-        if not _offer_create(target, console):
+        if not _create_dir(target, label, console):
             return EXIT_ERROR
     _record_origin(target)
     _emit_target(target, console)
@@ -89,26 +88,29 @@ def _require_dir(target: str, label: str, console: Console) -> bool:
     return True
 
 
-def _offer_create(target: str, console: Console) -> bool:
-    """Prompt to create a missing target directory. True if it now exists."""
-    if not confirm_create(target):
-        return False
+def _create_dir(target: str, label: str, console: Console) -> bool:
+    """Create a missing target directory, parents included. True on success.
+
+    -F never prompts: the flag is the consent, so there is nothing to ask. It does
+    report what it did, because a silent jump into a directory that did not exist
+    a moment ago is indistinguishable from a typo'd bookmark.
+    """
     try:
         os.makedirs(target, exist_ok=True)
     except OSError as e:
-        err(console, f"cannot create directory {target}: {e}")
+        err(console, f"Cannot create directory {target}: {e}")
         return False
-    ok(console, f"Created {target}")
+    ok(console, f"Created {label} -> {target}")
     return True
 
 
 def _emit_target(target: str, console: Console) -> None:
     """Hand the resolved path back to the shell.
 
-    The wrapper runs -F live so the prompt is visible, and a live process cannot
-    deliver its path over the captured stdout the cd protocol relies on. WP_NAV_OUT
-    is the side channel for that case; without it -- a plain nav, or running the
-    module directly -- the path goes to stdout exactly as before.
+    -F prints a success line before navigating, so stdout is no longer a single
+    bare path and the wrapper's cd discriminator cannot read it. WP_NAV_OUT is the
+    side channel that carries the path out-of-band; without it -- a plain nav, or
+    running the module directly -- the path goes to stdout exactly as before.
     """
     nav_out = os.environ.get(NAV_OUT_ENV)
     if nav_out:

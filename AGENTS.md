@@ -26,22 +26,23 @@ Use `rich` (`rich.console.Console`, `rich.table.Table`, `rich.panel.Panel`, `ric
   in install.ps1. Any new command that prompts interactively MUST be added to
   that list, or it will get the same invisible-prompt bug.
 
-- Prompting and navigating are mutually exclusive in one process. Making a
-  prompt visible requires running live (uncaptured stdout); making the `cd`
-  work requires capturing stdout to read the bare path off it. A live process
-  cannot do both. `wp <alias> -F` (create a missing target dir) resolves this
-  with the `WP_NAV_OUT` side channel: the wrapper exports a temp file path, the
-  CLI writes the resolved path there instead of stdout, and the wrapper reads
-  it, `Set-Location`s, and deletes it. Two rules follow. Any new *prompting
+- Reporting and navigating are mutually exclusive over stdout. The `cd` protocol
+  is "stdout is exactly one line, and it is an existing path", so any command
+  that prints a success line *and* navigates breaks it -- the wrapper sees two
+  lines, rejects them, and the shell silently stays put. `wp <alias> -F`
+  (create a missing target dir, then go) resolves this with the `WP_NAV_OUT`
+  side channel: the wrapper exports a temp file path, the CLI writes the
+  resolved path there instead of stdout, and the wrapper reads it,
+  `Set-Location`s, and deletes it. Two rules follow. Any new *reporting
   navigation* path needs that side channel, not a second stdout line. And
   `WP_NAV_OUT` is a Python<->PowerShell contract -- renaming it on one side only
   fails silently, with the CLI quietly falling back to stdout that nobody reads.
   `tests/test_wrapper_contract.py` guards both.
 
-- `rich.Confirm` renders `[y/n]` followed by a redundant `(n)`, not the
-  conventional `[y/N]`. `prompt_name`'s sibling `_YesNo` in `waypoint/prompts.py`
-  overrides `make_prompt` to capitalize the default letter. Override
-  `make_prompt`; do not try to pass `show_default=False` (not a `__call__` kwarg
-  in rich 15) and do not uppercase `Confirm.choices` (`process_response`
-  lowercases input, so `"n"` would stop matching and every decline would
-  re-prompt).
+- A flag that acts destructively-ish should not also ask. `-F` originally
+  prompted `Create <path>? [y/N]`, which made the flag useless in aliases and
+  scripts and added a whole live-prompt code path for no benefit -- the user
+  typing the flag already *is* the consent. Prefer the flag as the whole
+  interaction and print what happened afterwards. A prompt inside a wrapper
+  branch also silently costs a side channel (see above), so dropping it is not
+  only simpler, it removes a protocol complication.

@@ -89,49 +89,72 @@ def test_nav_missing_dir_points_at_force_flag(tmp_path):
     assert not gone.exists()
 
 
-def test_nav_force_declined_leaves_nothing_behind(tmp_path, monkeypatch):
+def test_nav_force_creates_dir_without_prompting(tmp_path, monkeypatch, capsys):
+    """-F is the consent: it must create unconditionally and never read stdin.
+
+    The flag is only usable non-interactively if this holds, so any prompt at all
+    is a bug -- hence the exploding input().
+    """
     console = _color_console()
     gone = tmp_path / "gone"
     store.save_bookmarks(store.Bookmarks(bookmarks={"proj": str(gone)}, default=None))
-    monkeypatch.setattr("waypoint.commands.nav.confirm_create", lambda target: False)
 
-    rc = _nav(NavCmd(alias="proj", force=True), console)
+    def boom(*_a, **_k):
+        raise AssertionError("-F must not prompt")
 
-    assert rc == EXIT_ERROR
-    assert not gone.exists()
-
-
-def test_nav_force_accepted_creates_dir_and_navigates(tmp_path, monkeypatch, capsys):
-    console = _color_console()
-    gone = tmp_path / "gone"
-    store.save_bookmarks(store.Bookmarks(bookmarks={"proj": str(gone)}, default=None))
-    monkeypatch.setattr("waypoint.commands.nav.confirm_create", lambda target: True)
+    monkeypatch.setattr("builtins.input", boom)
+    monkeypatch.setattr("waypoint.prompts.Prompt.ask", boom)
 
     rc = _nav(NavCmd(alias="proj", force=True), console)
     capsys.readouterr()
 
     assert rc == EXIT_OK
     assert gone.is_dir()
-    assert "Created" in _ANSI.sub("", console.file.getvalue())
 
 
-def test_nav_force_skips_prompt_when_dir_already_exists(tmp_path, monkeypatch, capsys):
-    """-F must still hand the target back when there is nothing to create, because
-    the wrapper runs it live and cannot read the path off stdout."""
+def test_nav_force_reports_what_it_created(tmp_path, capsys):
+    """A silent jump into a directory that did not exist is indistinguishable
+    from a typo'd bookmark, so -F names the alias and the path, matching the
+    `Saved <name> -> <path>` convention used by add/mv."""
+    console = _color_console()
+    gone = tmp_path / "gone"
+    store.save_bookmarks(store.Bookmarks(bookmarks={"proj": str(gone)}, default=None))
+
+    _nav(NavCmd(alias="proj", force=True), console)
+    capsys.readouterr()
+    out = _ANSI.sub("", console.file.getvalue())
+
+    assert f"Created proj -> {gone}" in out
+
+
+def test_nav_force_creates_missing_parents(tmp_path, capsys):
+    """Bookmarks routinely point several levels deep; -F must not stop at the
+    first missing component."""
+    console = _color_console()
+    deep = tmp_path / "a" / "b" / "c"
+    store.save_bookmarks(store.Bookmarks(bookmarks={"proj": str(deep)}, default=None))
+
+    rc = _nav(NavCmd(alias="proj", force=True), console)
+    capsys.readouterr()
+
+    assert rc == EXIT_OK
+    assert deep.is_dir()
+
+
+def test_nav_force_creates_nothing_when_dir_exists(tmp_path, capsys):
+    """-F on a live bookmark is a plain nav: it must not claim to have created
+    anything, and must still hand the target back (the wrapper runs it live and
+    cannot read the path off stdout)."""
     console = _color_console()
     target = tmp_path / "there"
     target.mkdir()
     store.save_bookmarks(store.Bookmarks(bookmarks={"proj": str(target)}, default=None))
 
-    def boom(_target):
-        raise AssertionError("must not prompt when the directory already exists")
-
-    monkeypatch.setattr("waypoint.commands.nav.confirm_create", boom)
-
     rc = _nav(NavCmd(alias="proj", force=True), console)
     out = capsys.readouterr().out
 
     assert rc == EXIT_OK
+    assert "Created" not in _ANSI.sub("", console.file.getvalue())
     assert out.strip() == str(target)
 
 

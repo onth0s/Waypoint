@@ -62,9 +62,9 @@ def test_interactive_commands_list_synced_with_install_ps1():
     raw_cmds = match.group(1)
     extracted_cmds = set(re.findall(r"['\"](.*?)['\"]", raw_cmds))
 
-    # Today: only `add` invokes Prompt.ask / prompt_name as a *command*. The -F
-    # nav flag also prompts, but it is a flag rather than a subcommand, so the
-    # wrapper branches on it separately (see the force-flag test below).
+    # `add` is the only command that prompts. -F deliberately does not -- the
+    # flag is the consent -- but it does print a success line before navigating,
+    # so it needs the live branch for the side channel, not for a prompt.
     expected_cmds = {"add"}
     assert extracted_cmds == expected_cmds, (
         f"$interactiveCmds in install.ps1 is {extracted_cmds}, "
@@ -73,10 +73,10 @@ def test_interactive_commands_list_synced_with_install_ps1():
 
 
 def test_install_ps1_runs_force_flag_live_with_nav_side_channel():
-    r"""`wp <alias> -F` prompts to create a missing directory, so it must run live
-    like `wp add` -- a captured stdout buffers the prompt and the user types blind.
-    A live process cannot hand its path back over that captured stdout, so the
-    wrapper needs the WP_NAV_OUT side channel to learn where to cd."""
+    r"""`wp <alias> -F` reports the directory it created, so stdout is no longer a
+    single bare path and the wrapper's cd discriminator cannot read it. -F
+    therefore runs live and returns its target through the WP_NAV_OUT side
+    channel rather than stdout."""
     text = (PROJECT_DIR / "install.ps1").read_text(encoding="utf-8")
     assert "`$force = `$args -contains '-F'" in text, "missing -F live detection"
     assert "`$force -or (`$args.Count -gt 0" in text, (
@@ -148,8 +148,12 @@ def _nav_out_files() -> set[Path]:
     return {p for p in Path(tempfile.gettempdir()).glob("wp_nav_*") if pattern.match(p.name)}
 
 
-def _run_wrapper(answer: str, tmp_path):
-    """Drive the real wp wrapper in a child PowerShell, answering the prompt."""
+def _run_wrapper(tmp_path):
+    """Drive the real wp wrapper in a child PowerShell.
+
+    stdin is left closed: -F must never prompt, and a wrapper that reintroduced a
+    prompt would otherwise hang until the 120s timeout instead of failing.
+    """
     work = tmp_path / "shell"
     work.mkdir()
     (work / "waypoint.yaml").write_text(
@@ -174,7 +178,7 @@ def _run_wrapper(answer: str, tmp_path):
     env.pop("WP_NAV_OUT", None)
     return work, subprocess.run(
         [PWSH, "-NoLogo", "-NoProfile", "-NonInteractive", "-File", str(script)],
-        input=f"{answer}\n",
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         cwd=work,
@@ -185,33 +189,25 @@ def _run_wrapper(answer: str, tmp_path):
 
 @needs_pwsh
 def test_wrapper_force_creates_dir_and_lands_in_it(tmp_path):
-    """`wp delmon -F` + y: dir created, prompt shown, and the shell lands inside.
+    """`wp delmon -F`: no prompt, dir created, reported, and the shell lands inside.
 
-    The cd is the whole point of the WP_NAV_OUT side channel -- a live process
-    cannot report its path on the stdout the wrapper would otherwise capture.
+    The cd is the whole point of the WP_NAV_OUT side channel -- -F prints a
+    success line, so the bare path the wrapper would otherwise read off captured
+    stdout is not there to be read.
     """
-    work, proc = _run_wrapper("y", tmp_path)
+    work, proc = _run_wrapper(tmp_path)
     target = work / "_delete-me" / "daemon_tests"
     context = f"\n--- stdout ---\n{proc.stdout}\n--- stderr ---\n{proc.stderr}"
 
     assert "MISSING_BEFORE=True" in proc.stdout, context
-    assert "[y/N]" in proc.stdout, f"prompt not shown on the live branch{context}"
+    assert "[y/N]" not in proc.stdout, f"-F must not prompt{context}"
+    assert f"Created delmon -> {target}" in proc.stdout, (
+        f"creation not reported{context}"
+    )
     assert "RC=0" in proc.stdout, context
     assert target.is_dir(), f"directory not created{context}"
     assert "TARGET_EXISTS=True" in proc.stdout, context
     assert f"LOC={target}" in proc.stdout, f"wrapper did not cd into the new dir{context}"
-
-
-@needs_pwsh
-def test_wrapper_force_declined_creates_nothing_and_stays_put(tmp_path):
-    work, proc = _run_wrapper("n", tmp_path)
-    target = work / "_delete-me" / "daemon_tests"
-    context = f"\n--- stdout ---\n{proc.stdout}\n--- stderr ---\n{proc.stderr}"
-
-    assert "[y/N]" in proc.stdout, f"prompt not shown on the live branch{context}"
-    assert "RC=1" in proc.stdout, context
-    assert not target.exists(), f"declined but directory was created{context}"
-    assert f"LOC={work}" in proc.stdout, f"declined but the shell still moved{context}"
 
 
 @needs_pwsh
@@ -222,7 +218,7 @@ def test_wrapper_force_cleans_up_its_temp_file(tmp_path):
     this or mask a real leak.
     """
     before = _nav_out_files()
-    _, proc = _run_wrapper("y", tmp_path)
+    _, proc = _run_wrapper(tmp_path)
     context = f"\n--- stdout ---\n{proc.stdout}\n--- stderr ---\n{proc.stderr}"
 
     leaked = _nav_out_files() - before

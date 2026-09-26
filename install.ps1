@@ -92,11 +92,12 @@ function global:wp {
     # Capturing stdout via @() would buffer stdout on the pipe, causing invisible
     # prompts. Run live.
     `$interactiveCmds = @('add')
-    # -F may prompt to create a missing target directory, so it runs live as well.
+    # -F creates a missing target directory and reports it, so stdout is not a
+    # single bare path. It runs live and returns the path through the file below.
     `$force = `$args -contains '-F'
     if (`$force -or (`$args.Count -gt 0 -and `$interactiveCmds -contains `$args[0])) {
-        # A live process cannot hand its navigation target back over the captured
-        # stdout the cd protocol depends on, so -F returns it through this file.
+        # The cd protocol reads the bare path off captured stdout, which -F cannot
+        # use because it prints a success line first. This file carries the path.
         `$navOut = `$null
         if (`$force) {
             `$navOut = Join-Path ([System.IO.Path]::GetTempPath()) ('wp_nav_' + [guid]::NewGuid().ToString('N') + '.txt')

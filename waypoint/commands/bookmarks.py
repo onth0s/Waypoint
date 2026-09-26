@@ -131,10 +131,16 @@ def _ls(console: Console) -> int:
         formatted_aliases = [
             f"{a} *" if a == b.default else a for a in aliases
         ]
-        alias_str = ", ".join(formatted_aliases)
-        display_path = f"{path} [red][MISSING][/red]" if not is_alive else path
+        # escape(): a bracketed segment (C:\dev\[draft]\proj) otherwise matches
+        # rich's tag regex and silently loses its brackets.
+        alias_str = escape(", ".join(formatted_aliases))
+        # "not dim" is load-bearing -- dead rows carry a "dim" base style, and an
+        # inline tag only overrides the properties it names, so plain [red]
+        # inherits dim and renders the marker fainter than the live path.
+        safe_path = escape(path)
+        marker = " [red not dim][MISSING][/red not dim]" if not is_alive else ""
         row_style = _row_style(has_default, is_cwd, is_alive)
-        table.add_row(alias_str, display_path, style=row_style)
+        table.add_row(alias_str, safe_path + marker, style=row_style)
 
     console.print(table)
     missing_count = sum(

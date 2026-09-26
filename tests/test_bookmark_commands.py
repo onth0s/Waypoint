@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import types
 
 from rich.console import Console
@@ -326,3 +327,41 @@ def test_ls_all_alive_no_warning(tmp_path, capsys):
     assert rc == EXIT_OK
     assert "MISSING" not in out
     assert "point to missing" not in out
+
+
+def test_ls_missing_marker_is_not_dimmed(tmp_path):
+    """The dead-row base style is "dim" and inline tags only override the
+    properties they name, so a bare [red] marker inherits dim and renders
+    fainter than the live path beside it. Lock the plain-red emission."""
+    gone = tmp_path / "gone"
+    b = store.Bookmarks(bookmarks={"dead": str(gone)}, default=None)
+    store.save_bookmarks(b)
+
+    buf = io.StringIO()
+    console = Console(
+        file=buf,
+        force_terminal=True,
+        color_system="standard",
+        legacy_windows=False,
+        highlight=False,
+        width=120,
+    )
+    assert _ls(console) == EXIT_OK
+
+    out = buf.getvalue()
+    assert "\x1b[31m[MISSING]" in out
+    assert "\x1b[2;31m[MISSING]" not in out
+
+
+def test_ls_escapes_bracketed_path_segment(tmp_path):
+    """A path segment in [brackets] must survive rich's tag regex intact."""
+    target = tmp_path / "[draft]"
+    target.mkdir()
+    b = store.Bookmarks(bookmarks={"proj": str(target)}, default=None)
+    store.save_bookmarks(b)
+
+    buf = io.StringIO()
+    console = Console(file=buf, force_terminal=False, highlight=False, width=120)
+    assert _ls(console) == EXIT_OK
+
+    assert str(target) in buf.getvalue()

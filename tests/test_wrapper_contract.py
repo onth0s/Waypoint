@@ -2,10 +2,21 @@
 
 from __future__ import annotations
 
+import os
 import re
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+import yaml
 
 from waypoint import cli, store
 from waypoint.store import PROJECT_DIR
+
+# Resolved at import time, before the autouse fixture patches store.PROJECT_DIR,
+# so this is the real checkout -- which is where install.ps1 and __main__.py live.
+REPO = str(PROJECT_DIR)
 
 
 def test_record_history_cli_behavior(monkeypatch, tmp_path, capsys):
@@ -89,6 +100,133 @@ def test_nav_side_channel_env_var_matches_install_ps1():
     assert NAV_OUT_ENV in text, (
         f"install.ps1 never references {NAV_OUT_ENV}; the -F handoff will not work"
     )
+
+
+# --- end-to-end: the real wrapper, in a real child shell -----------------------
+#
+# The unit tests above can all pass while `wp <alias> -F` still hangs on the user,
+# because the failure lives in the PowerShell wrapper, not in Python. Only a child
+# process catches that: a function called with no param() block discards pipeline
+# input, so the answer must arrive via the child's real stdin instead.
+
+PWSH = shutil.which("pwsh") or shutil.which("powershell")
+needs_pwsh = pytest.mark.skipif(PWSH is None, reason="PowerShell not on PATH")
+
+# Extracts and evaluates the wrapper straight from install.ps1 (never the user's
+# profile, so a stale installed block cannot mask or fake a result), then calls it.
+HARNESS = r"""
+$ErrorActionPreference = 'Stop'
+$src = Get-Content -LiteralPath '__REPO__\install.ps1' -Raw
+$m = [regex]::Match($src, '(?s)\$Block = @"(.*?)\r?\n"@')
+if (-not $m.Success) { throw 'could not extract $Block' }
+$assign = "`$RepoDir = `"__REPO__`"`n" + '$Block = @"' + $m.Groups[1].Value + '"@'
+Invoke-Expression $assign
+Invoke-Expression $Block
+
+Set-Location '__WORK__'
+$missing = '__WORK__\_delete-me\daemon_tests'
+Write-Output "MISSING_BEFORE=$( -not (Test-Path -LiteralPath $missing) )"
+
+wp delmon -F
+
+Write-Output "RC=$LASTEXITCODE"
+Write-Output "TARGET_EXISTS=$(Test-Path -LiteralPath $missing)"
+Write-Output "LOC=$((Get-Location).Path)"
+"""
+
+
+def _nav_out_files() -> set[Path]:
+    """Temp files the wrapper's side channel could have left behind.
+
+    Matches the wrapper's own naming -- 'wp_nav_' plus a 32-char guid -- so
+    unrelated wp_nav_*.txt files cannot make this flaky.
+    """
+    import re as _re
+    import tempfile
+
+    pattern = _re.compile(r"^wp_nav_[0-9a-fA-F]{32}\.txt$")
+    return {p for p in Path(tempfile.gettempdir()).glob("wp_nav_*") if pattern.match(p.name)}
+
+
+def _run_wrapper(answer: str, tmp_path):
+    """Drive the real wp wrapper in a child PowerShell, answering the prompt."""
+    work = tmp_path / "shell"
+    work.mkdir()
+    (work / "waypoint.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "bookmarks": {"delmon": str(work / "_delete-me" / "daemon_tests")},
+                "default": None,
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    script = tmp_path / "harness.ps1"
+    script.write_text(
+        HARNESS.replace("__REPO__", REPO).replace("__WORK__", str(work)),
+        encoding="utf-8",
+    )
+
+    # WP_HOME pins the data dir; the child's cwd already has waypoint.yaml, which
+    # takes precedence, so this only keeps history.yaml inside the fixture.
+    env = {**os.environ, "WP_HOME": str(work)}
+    env.pop("WP_NAV_OUT", None)
+    return work, subprocess.run(
+        [PWSH, "-NoLogo", "-NoProfile", "-NonInteractive", "-File", str(script)],
+        input=f"{answer}\n",
+        capture_output=True,
+        text=True,
+        cwd=work,
+        env=env,
+        timeout=120,
+    )
+
+
+@needs_pwsh
+def test_wrapper_force_creates_dir_and_lands_in_it(tmp_path):
+    """`wp delmon -F` + y: dir created, prompt shown, and the shell lands inside.
+
+    The cd is the whole point of the WP_NAV_OUT side channel -- a live process
+    cannot report its path on the stdout the wrapper would otherwise capture.
+    """
+    work, proc = _run_wrapper("y", tmp_path)
+    target = work / "_delete-me" / "daemon_tests"
+    context = f"\n--- stdout ---\n{proc.stdout}\n--- stderr ---\n{proc.stderr}"
+
+    assert "MISSING_BEFORE=True" in proc.stdout, context
+    assert "[y/N]" in proc.stdout, f"prompt not shown on the live branch{context}"
+    assert "RC=0" in proc.stdout, context
+    assert target.is_dir(), f"directory not created{context}"
+    assert "TARGET_EXISTS=True" in proc.stdout, context
+    assert f"LOC={target}" in proc.stdout, f"wrapper did not cd into the new dir{context}"
+
+
+@needs_pwsh
+def test_wrapper_force_declined_creates_nothing_and_stays_put(tmp_path):
+    work, proc = _run_wrapper("n", tmp_path)
+    target = work / "_delete-me" / "daemon_tests"
+    context = f"\n--- stdout ---\n{proc.stdout}\n--- stderr ---\n{proc.stderr}"
+
+    assert "[y/N]" in proc.stdout, f"prompt not shown on the live branch{context}"
+    assert "RC=1" in proc.stdout, context
+    assert not target.exists(), f"declined but directory was created{context}"
+    assert f"LOC={work}" in proc.stdout, f"declined but the shell still moved{context}"
+
+
+@needs_pwsh
+def test_wrapper_force_cleans_up_its_temp_file(tmp_path):
+    """A leftover wp_nav_*.txt would accumulate in TEMP on every -F invocation.
+
+    Diffed rather than globbed, so a stale file from an earlier run cannot fail
+    this or mask a real leak.
+    """
+    before = _nav_out_files()
+    _, proc = _run_wrapper("y", tmp_path)
+    context = f"\n--- stdout ---\n{proc.stdout}\n--- stderr ---\n{proc.stderr}"
+
+    leaked = _nav_out_files() - before
+    assert not leaked, f"wrapper leaked side-channel temp file(s): {sorted(leaked)}{context}"
 
 
 def test_install_ps1_tracks_both_before_and_current_dir():

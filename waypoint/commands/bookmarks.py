@@ -205,7 +205,8 @@ def _get(cmd: GetCmd, console: Console) -> int:
             raise store.BookmarkNotFoundError(alias)
     else:
         if b.default is None:
-            err(console, "No default bookmark. Set one with: [bold]wp default <alias>[/bold]")
+            err(console, "No default bookmark.")
+            hint(console, "Set one with: [bold]wp default <alias>[/bold]")
             return EXIT_ERROR
         alias = b.default
         target = b.bookmarks.get(alias)

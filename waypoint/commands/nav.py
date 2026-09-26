@@ -51,7 +51,8 @@ def _nav(cmd: NavCmd, console: Console) -> int:
 def _default_target(b: store.Bookmarks, console: Console) -> str | None:
     """Resolve the default bookmark's path; print an error and return None on failure."""
     if b.default is None:
-        err(console, "No default bookmark. Set one with: [bold]wp default <alias>[/bold]")
+        err(console, "No default bookmark.")
+        hint(console, "Set one with: [bold]wp default <alias>[/bold]")
         return None
     target = b.bookmarks.get(b.default)
     if target is None:

@@ -1,14 +1,29 @@
 """Output helper tests."""
 
+import re
 from io import StringIO
 
 from rich.console import Console
 
 from waypoint.output import err, hint, ok, warn
 
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
 
 def _make_console():
     return Console(file=StringIO(), force_terminal=True)
+
+
+def _make_color_console():
+    """Production-shaped console: forced color, no ReprHighlighter noise."""
+    return Console(
+        file=StringIO(),
+        force_terminal=True,
+        color_system="standard",
+        legacy_windows=False,
+        highlight=False,
+        width=200,
+    )
 
 
 def test_err_prints_red():
@@ -39,6 +54,43 @@ def test_hint_prints_plain():
     hint(console, "try wp help")
     out = console.file.getvalue()
     assert "try wp help" in out
+
+
+def test_warn_renders_inline_markup_instead_of_literal_tags():
+    """warn() carries static advice text with [bold] tags. escape() used to be
+    applied here, which rendered the tags as visible "[bold]wp mv ...[/bold]"."""
+    console = _make_color_console()
+    warn(console, "use [bold]wp mv <alias> <new_path>[/bold] to repoint")
+    raw = console.file.getvalue()
+    plain = _ANSI.sub("", raw)
+    assert "[bold]" not in plain
+    assert "[/bold]" not in plain
+    assert "use wp mv <alias> <new_path> to repoint" in plain
+    assert "1" in raw  # bold SGR somewhere in the command span
+
+
+def test_hint_renders_inline_markup_instead_of_literal_tags():
+    console = _make_color_console()
+    hint(console, "run [bold]wp h --all[/bold]")
+    plain = _ANSI.sub("", console.file.getvalue())
+    assert "[bold]" not in plain
+    assert "run wp h --all" in plain
+
+
+def test_err_keeps_escaping_markup_in_data():
+    """err() is the data-carrying half of the contract: paths and aliases must
+    survive verbatim and must never be interpreted as markup."""
+    console = _make_color_console()
+    err(console, "not a directory: C:\\dev\\[draft]\\proj")
+    plain = _ANSI.sub("", console.file.getvalue())
+    assert "C:\\dev\\[draft]\\proj" in plain
+
+
+def test_ok_keeps_escaping_markup_in_data():
+    console = _make_color_console()
+    ok(console, "Saved demo -> C:\\dev\\[draft]")
+    plain = _ANSI.sub("", console.file.getvalue())
+    assert "C:\\dev\\[draft]" in plain
 
 
 def test_ok_long_path_stays_single_line():

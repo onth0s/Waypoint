@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from rich.console import Console
+from rich.markup import escape
 from rich.prompt import Prompt
 
 from waypoint import store
@@ -49,7 +50,10 @@ def prompt_name(b: store.Bookmarks, explicit: str | None, console: Console) -> s
             name = None
             continue
         if name in b.bookmarks:
-            hint(console, f"Hint: [bold]wp mv {name} <new_path>[/bold] to repoint instead.")
+            hint(
+                console,
+                f"Hint: [bold]wp mv {escape(name)} <new_path>[/bold] to repoint instead.",
+            )
             result = _resolve_collision(name, b, console)
             if result is None:
                 name = None

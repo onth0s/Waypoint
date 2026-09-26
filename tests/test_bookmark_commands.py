@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import re
 import types
 
 from rich.console import Console
@@ -9,6 +10,8 @@ from waypoint import clipboard, store
 from waypoint.commands.bookmarks import _add, _get, _ls, _mv, _rm, _row_style
 from waypoint.constants import EXIT_ERROR, EXIT_OK
 from waypoint.resolver import AddCmd, GetCmd, MvCmd, RmCmd
+
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def test_add_explicit_alias_and_path(tmp_path, capsys):
@@ -315,6 +318,30 @@ def test_ls_flags_missing_path(tmp_path, capsys):
     assert rc == EXIT_OK
     assert "MISSING" in out
     assert "1 bookmark(s) point to missing paths" in out
+
+
+def test_ls_missing_warning_renders_command_without_literal_tags(tmp_path):
+    """The "wp mv" advice in the missing-paths warning is [bold]-tagged. warn()
+    used to escape it, so the user saw a literal "[bold]wp mv ...[/bold]"."""
+    gone = tmp_path / "gone"
+    b = store.Bookmarks(bookmarks={"dead": str(gone)}, default=None)
+    store.save_bookmarks(b)
+
+    buf = io.StringIO()
+    console = Console(
+        file=buf,
+        force_terminal=True,
+        color_system="standard",
+        legacy_windows=False,
+        highlight=False,
+        width=200,
+    )
+    assert _ls(console) == EXIT_OK
+
+    plain = _ANSI.sub("", buf.getvalue())
+    assert "[bold]" not in plain
+    assert "[/bold]" not in plain
+    assert "use wp mv <alias> <new_path> to repoint" in plain
 
 
 def test_ls_all_alive_no_warning(tmp_path, capsys):

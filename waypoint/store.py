@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -160,7 +161,6 @@ def save_bookmarks(b: Bookmarks) -> None:
 
 def _atomic_write(path: Path, payload: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    import tempfile
 
     fd, tmp_path_str = tempfile.mkstemp(
         dir=path.parent, prefix=path.name + ".", suffix=".tmp"

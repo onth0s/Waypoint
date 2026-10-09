@@ -54,6 +54,7 @@ wp add <alias>          → bookmark current dir as <alias>
 wp add <alias> <path>   → bookmark <path> as <alias>
 wp add .                → bookmark current dir (shorthand, same as bare `wp add`)
 wp rm <alias>           → delete a bookmark
+wp mv <alias> <path>   → repoint <alias> to a new directory
 wp ls, wp list           → list all bookmarks
 wp get [alias]           → print a bookmark's path and copy it to the clipboard (default if omitted)
 wp set [alias|path|~]   → set default (clipboard → cwd → temp slot; `~` resolves to home)
@@ -69,10 +70,10 @@ wp store                 → show where bookmarks are stored
 wp store <alias|path|~>  → store bookmarks at <alias> target or <path> (auto-creates directory if missing)
 wp config                → show where bookmarks are stored
 wp config home <path>    → store bookmarks at <path>
-wp config home null      → reset to the default location
+wp config home null      → reset to the default location (~/.waypoint)
 ```
 
-`null` is a literal sentinel: it writes `home: null` back into `config.yaml`, which is the documented default ("same dir as this config"). `wp store ~` sets the bookmark storage directory directly to your home directory (`~`).
+`null` is a literal sentinel: it writes `home: null` back into `config.yaml`, which is the documented default (`~/.waypoint`). `wp store ~` sets the bookmark storage directory directly to your home directory (`~`).
 
 ### Open locations
 
@@ -118,14 +119,14 @@ contract, enforced by
 
 The parser is greedy on aliases. `wp <anything>` resolves as:
 
-1. If `<anything>` matches a **reserved keyword** (`add`, `rm`, `ls`, `list`, `default`, `set`, `get`, `store`, `config`, `help`, `--help`, `--help-full`, `undo`, `u`, `U`, `uu`, `history`, `h`, `.`, `-vs`, `-h`, `-?`, `-F`) → run the subcommand.
+1. If `<anything>` matches a **reserved keyword** (`add`, `rm`, `mv`, `ls`, `list`, `default`, `set`, `get`, `store`, `config`, `help`, `--help`, `--help-full`, `undo`, `u`, `U`, `uu`, `history`, `h`, `.`, `-vs`, `-h`, `-?`, `-F`) → run the subcommand.
 2. Otherwise → treat it as a bookmark alias and navigate to it.
 
 This means `wp dev` goes to the "dev" bookmark. `wp add` runs the add subcommand. No disambiguation needed — reserved words are a small, closed set.
 
 `-F` is the one reserved word that is a *flag* rather than a subcommand: it is checked before the reserved dispatch, so bare `wp -F` and `wp <alias> -F` both mean "navigate, creating the directory if it is missing". A reserved head never reaches it, which is why `wp ls -F` is a usage error rather than a navigation.
 
-Reserved keywords: `add`, `rm`, `ls`, `list`, `default`, `set`, `get`, `store`, `config`, `help`, `--help`, `--help-full`, `undo`, `u`, `U`, `uu`, `history`, `h`, `.`, `-vs`, `-h`, `-?`, `-F` (plus `_record_history`, reserved for internal wrapper use)
+Reserved keywords: `add`, `rm`, `mv`, `ls`, `list`, `default`, `set`, `get`, `store`, `config`, `help`, `--help`, `--help-full`, `undo`, `u`, `U`, `uu`, `history`, `h`, `.`, `-vs`, `-h`, `-?`, `-F` (plus `_record_history`, reserved for internal wrapper use)
 
 ### Default bookmark
 

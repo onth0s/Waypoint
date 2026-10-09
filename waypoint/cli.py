@@ -2,7 +2,7 @@
 
 Stdout protocol (load-bearing, consumed by the `wp` PowerShell wrapper in
 install.ps1): a navigation invocation prints ONLY the resolved absolute path
-to stdout and exits 0 — the wrapper cds when stdout is exactly one line that
+to stdout and exits 0 -- the wrapper cds when stdout is exactly one line that
 is an existing path. Everything else is human output rendered via rich on
 stdout (never stderr, since PowerShell shows native stderr as red error
 records). The bare nav path is the single sanctioned exception to AGENTS.md's
@@ -58,10 +58,10 @@ def main(argv: list[str] | None = None) -> int:
         color_system="standard" if force else None,
         no_color=False if force else None,  # override ambient NO_COLOR when forced
         # legacy_windows routes through win32 console API calls that silently
-        # no-op on pipes (the wrapper captures stdout) — force ANSI writes.
+        # no-op on pipes (the wrapper captures stdout) -- force ANSI writes.
         legacy_windows=False if force else None,
         # Default highlight bolds every balanced "(...)" via ReprHighlighter,
-        # injecting escape codes mid-text — noise for end users and it can make
+        # injecting escape codes mid-text -- noise for end users and it can make
         # a single rich line trip the wrapper's Test-Path. Off.
         highlight=False,
     )

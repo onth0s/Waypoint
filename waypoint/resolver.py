@@ -297,8 +297,12 @@ def _parse_add(rest: list[str]) -> Command:
 
 
 def looks_like_path(arg: str) -> bool:
-    """Single-arg `wp add C:/x` or `wp add ~` means 'bookmark this path', not 'alias named C:/x'."""
-    return arg == "~" or any(sep in arg for sep in ("\\", "/"))
+    """Return True if arg looks like a filesystem path rather than a bookmark alias."""
+    if arg in ("~", ".", ".."):
+        return True
+    if any(sep in arg for sep in ("\\", "/")):
+        return True
+    return len(arg) == 2 and arg[1] == ":" and arg[0].isalpha()
 
 
 def _require(rest: list[str], count: int, message: str) -> None:

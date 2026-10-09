@@ -147,11 +147,13 @@ def test_usage_errors(argv):
         "my alias",
         "add",
         "rm",
+        "mv",
         "ls",
         "list",
         "default",
         "set",
         "get",
+        "store",
         "config",
         "help",
         "--help",
@@ -175,6 +177,27 @@ def test_validate_alias_rejects(name):
 
 def test_validate_alias_accepts_plain_name():
     validate_alias("dev")  # no exception
+
+
+@pytest.mark.parametrize(
+    ("path_str", "expected"),
+    [
+        (".", True),
+        ("..", True),
+        ("~", True),
+        (r"C:\dev", True),
+        ("C:/dev", True),
+        ("dev/sub", True),
+        (r"dev\sub", True),
+        ("D:", True),
+        ("dev", False),
+        ("mybookmark", False),
+    ],
+)
+def test_looks_like_path(path_str, expected):
+    from waypoint.resolver import looks_like_path
+
+    assert looks_like_path(path_str) is expected
 
 
 @pytest.mark.parametrize(

@@ -1354,3 +1354,27 @@ def test_store_null_resets_message(monkeypatch, tmp_path, capsys):
     assert "Store home reset to default (~/.waypoint)" in out
     assert store.load_config()["home"] is None
 
+
+def test_default_dot_dot_points_to_parent(monkeypatch, tmp_path, capsys):
+    child = tmp_path / "child"
+    child.mkdir()
+    monkeypatch.chdir(child)
+    rc = _run(monkeypatch, tmp_path, ["default", ".."])
+    capsys.readouterr()
+    assert rc == 0
+    b = store.load_bookmarks()
+    assert b.default == "temp"
+    assert b.bookmarks["temp"] == os.path.normpath(str(tmp_path))
+
+
+def test_set_dot_dot_points_to_parent(monkeypatch, tmp_path, capsys):
+    child = tmp_path / "child"
+    child.mkdir()
+    monkeypatch.chdir(child)
+    rc = _run(monkeypatch, tmp_path, ["set", ".."])
+    capsys.readouterr()
+    assert rc == 0
+    b = store.load_bookmarks()
+    assert b.default == "temp"
+    assert b.bookmarks["temp"] == os.path.normpath(str(tmp_path))
+

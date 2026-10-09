@@ -50,6 +50,14 @@ def test_record_history_cli_behavior(monkeypatch, tmp_path, capsys):
     capsys.readouterr()
     assert rc == 2
 
+    # 5. Batched recording in a single invocation
+    d2 = tmp_path / "d2"
+    d2.mkdir()
+    rc = cli.main(["_record_history", str(d2), str(d2), str(d1)])
+    capsys.readouterr()
+    assert rc == 0
+    assert store.load_history() == [str(d1), str(tmp_path / "nonexistent"), str(d2), str(d1)]
+
 
 def test_interactive_commands_list_synced_with_install_ps1():
     """Assert $interactiveCmds in install.ps1 matches Python-side Prompt usage."""
@@ -229,8 +237,9 @@ def test_install_ps1_tracks_both_before_and_current_dir():
     """The wrapper must record the dir left AND the dir arrived at, so the
     persistent stack top is always the current dir (cross-tab `wp u 0`)."""
     text = (PROJECT_DIR / "install.ps1").read_text(encoding="utf-8")
-    calls = re.findall(r"_record_history\s+`\$(\w+)", text)
-    assert calls == ["before", "current"], f"_record_history calls: {calls}"
+    match = re.search(r"_record_history\s+`\$(\w+)\s+`\$(\w+)", text)
+    assert match is not None, "missing batched _record_history `$before `$current"
+    assert [match.group(1), match.group(2)] == ["before", "current"]
 
 
 def test_install_ps1_defines_no_space_cd_shortcuts():

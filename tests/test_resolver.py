@@ -30,7 +30,11 @@ from waypoint.resolver import (
     [
         ([], NavCmd()),
         (["dev"], NavCmd(alias="dev")),
-        (["_record_history", r"C:\path"], RecordHistoryCmd(origin=r"C:\path")),
+        (["_record_history", r"C:\path"], RecordHistoryCmd(origins=[r"C:\path"])),
+        (
+            ["_record_history", r"C:\path1", r"C:\path2"],
+            RecordHistoryCmd(origins=[r"C:\path1", r"C:\path2"]),
+        ),
         (["add"], AddCmd(alias=None, path=None)),
         (["add", "dev"], AddCmd(alias="dev", path=None)),
         (["add", "."], AddCmd(alias=None, path=".")),

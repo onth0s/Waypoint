@@ -147,7 +147,7 @@ class OpenCmd:
 
 @dataclass
 class RecordHistoryCmd:
-    origin: str
+    origins: list[str]
 
 
 Command = (
@@ -188,8 +188,9 @@ def parse_args(argv: list[str]) -> Command:
             return NavCmd(alias=head, force=True)
         return NavCmd(alias=head)
     if head == "_record_history":
-        _require(rest, 1, "usage: wp _record_history <path>")
-        return RecordHistoryCmd(origin=rest[0])
+        if not rest:
+            raise UsageError("usage: wp _record_history <path> ...")
+        return RecordHistoryCmd(origins=rest)
     if head == "--help-full":
         _require(rest, 0, "wp --help-full takes no arguments")
         return HelpCmd(full=True)

@@ -16,12 +16,19 @@ __all__ = ["_undo", "_history", "_record_history_entry"]
 
 
 def _record_history_entry(cmd: RecordHistoryCmd) -> int:
-    """Record an origin path directly into history.yaml."""
-    origin = cmd.origin
-    if origin:
-        entries = store.load_history()
-        if not entries or os.path.normcase(entries[-1]) != os.path.normcase(origin):
-            store.save_history(entries + [origin])
+    """Record origin paths directly into history.yaml."""
+    if not cmd.origins:
+        return EXIT_OK
+    entries = store.load_history()
+    modified = False
+    for origin in cmd.origins:
+        if origin and (
+            not entries or os.path.normcase(entries[-1]) != os.path.normcase(origin)
+        ):
+            entries.append(origin)
+            modified = True
+    if modified:
+        store.save_history(entries)
     return EXIT_OK
 
 

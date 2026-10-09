@@ -58,8 +58,7 @@ function global:Set-WaypointLocation {
         # Track both the dir we left and the dir we arrived at (each deduped),
         # so the newest persistent history entry is always the current dir.
         # A fresh tab can then `wp h` / `wp u 0` to land where the last tab was.
-        & python "$RepoDir\waypoint\__main__.py" _record_history `$before > `$null 2>&1
-        & python "$RepoDir\waypoint\__main__.py" _record_history `$current > `$null 2>&1
+        & python "$RepoDir\waypoint\__main__.py" _record_history `$before `$current > `$null 2>&1
         if (`$global:WpHistory.Count -eq 0 -or `$global:WpHistory[`$global:WpHistory.Count - 1] -ne `$before) {
             `$global:WpHistory.Add(`$before)
         }
@@ -123,8 +122,12 @@ function global:wp {
         }
         return
     }
-    `$lines = @(& python "$RepoDir\waypoint\__main__.py" @args)
-    Remove-Item Env:WP_FORCE_COLOR -ErrorAction SilentlyContinue
+    `$lines = `$null
+    try {
+        `$lines = @(& python "$RepoDir\waypoint\__main__.py" @args)
+    } finally {
+        Remove-Item Env:WP_FORCE_COLOR -ErrorAction SilentlyContinue
+    }
     if (`$LASTEXITCODE -eq 0 -and `$lines.Count -eq 1 -and `$lines[0]) {
         try {
             `$ok = Test-Path -LiteralPath `$lines[0] -ErrorAction Stop
@@ -151,12 +154,21 @@ $MarkerEnd
 # run from a shell whose $PROFILE chain dot-sources another profile (e.g. pwsh
 # -> WindowsPowerShell). Writing a second block elsewhere would be silently
 # shadowed by the dot-sourced old one, so find and replace it in place first.
+$MyDocs = [Environment]::GetFolderPath('MyDocuments')
 $KnownProfiles = @(
     "$HOME\Documents\WindowsPowerShell\profile.ps1",
     "$HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1",
     "$HOME\Documents\PowerShell\profile.ps1",
     "$HOME\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
 )
+if ($MyDocs -and $MyDocs -ne "$HOME\Documents") {
+    $KnownProfiles += @(
+        "$MyDocs\WindowsPowerShell\profile.ps1",
+        "$MyDocs\WindowsPowerShell\Microsoft.PowerShell_profile.ps1",
+        "$MyDocs\PowerShell\profile.ps1",
+        "$MyDocs\PowerShell\Microsoft.PowerShell_profile.ps1"
+    )
+}
 $ProfilePath = $null
 foreach ($Candidate in $KnownProfiles) {
     if ((Test-Path -LiteralPath $Candidate) -and

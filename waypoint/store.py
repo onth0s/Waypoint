@@ -103,7 +103,7 @@ def load_config() -> dict[str, str | None]:
 def save_config_home(path: str | None) -> None:
     """Set config.yaml's home key, preserving the file's explanatory comment.
 
-    None resets to the documented default (`home: null` = project dir).
+    None resets to the documented default (`home: null` = ~/.waypoint).
     """
     home = (
         "null"
@@ -113,7 +113,7 @@ def save_config_home(path: str | None) -> None:
         ).strip()
     )
     payload = (
-        "# Where waypoint.yaml lives. Default: same dir as this config.\n"
+        "# Where waypoint.yaml lives. Default: ~/.waypoint\n"
         f"home: {home}\n"
     )
     _atomic_write(PROJECT_DIR / "config.yaml", payload)
@@ -170,7 +170,22 @@ def _atomic_write(path: Path, payload: str) -> None:
             f.write(payload)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp_path_str, path)
+
+        # On Windows, antivirus or search indexers can hold a transient lock on the file.
+        # Retry briefly with backoff if PermissionError occurs.
+        last_err: Exception | None = None
+        for attempt in range(4):
+            try:
+                os.replace(tmp_path_str, path)
+                break
+            except PermissionError as e:
+                last_err = e
+                if attempt < 3:
+                    import time
+
+                    time.sleep(0.015 * (2**attempt))
+                else:
+                    raise last_err from None
     except Exception:
         if os.path.exists(tmp_path_str):
             os.unlink(tmp_path_str)

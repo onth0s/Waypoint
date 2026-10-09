@@ -23,9 +23,9 @@ def _config(cmd: ConfigCmd, console: Console) -> int:
         return EXIT_OK
     target = cmd.target
     if target.strip().lower() == "null":
-        # Documented default (config.yaml: `home: null` = project dir).
+        # Documented default (config.yaml: `home: null` = ~/.waypoint).
         store.save_config_home(None)
-        ok(console, "Home set to default (project dir)")
+        ok(console, "Home reset to default (~/.waypoint)")
         return EXIT_OK
     target = os.path.abspath(os.path.expanduser(target))
     store.save_config_home(target)
@@ -52,7 +52,7 @@ def _store(cmd: StoreCmd, console: Console) -> int:
         target_path = os.path.expanduser(arg)
     elif arg.strip().lower() == "null":
         store.save_config_home(None)
-        ok(console, "Store home set to default (project dir)")
+        ok(console, "Store home reset to default (~/.waypoint)")
         return EXIT_OK
     else:
         target_path = os.path.abspath(os.path.expanduser(arg))

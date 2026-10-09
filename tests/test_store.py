@@ -217,3 +217,19 @@ def test_independent_cwd_resolution(monkeypatch, tmp_path):
     assert store.history_path() == data_home / "history.yaml"
 
 
+def test_atomic_write_retries_transient_permission_error(monkeypatch, tmp_path):
+    target = tmp_path / "flaky.txt"
+    attempts = 0
+    real_replace = store.os.replace
+
+    def flaky_replace(src, dst):
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise PermissionError("Access is denied (transient lock)")
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(store.os, "replace", flaky_replace)
+    store._atomic_write(target, "success")
+    assert target.read_text(encoding="utf-8") == "success"
+    assert attempts == 3

@@ -1335,10 +1335,22 @@ def test_mv_is_not_interactive(monkeypatch, tmp_path, capsys):
     assert rc == 0
 
 
+def test_config_home_null_resets_message(monkeypatch, tmp_path, capsys):
+    _run(monkeypatch, tmp_path, ["config", "home", str(tmp_path / "other")])
+    capsys.readouterr()
+    rc = _run(monkeypatch, tmp_path, ["config", "home", "null"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Home reset to default (~/.waypoint)" in out
+    assert store.load_config()["home"] is None
 
 
-
-
-
-
+def test_store_null_resets_message(monkeypatch, tmp_path, capsys):
+    _run(monkeypatch, tmp_path, ["store", str(tmp_path / "other")])
+    capsys.readouterr()
+    rc = _run(monkeypatch, tmp_path, ["store", "null"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Store home reset to default (~/.waypoint)" in out
+    assert store.load_config()["home"] is None
 

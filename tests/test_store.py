@@ -42,22 +42,22 @@ def test_existing_file_not_reseeded(monkeypatch, tmp_path):
 
 def test_resolution_order(monkeypatch, tmp_path):
     monkeypatch.delenv("WP_HOME", raising=False)  # outer shell may have it set
-    project = tmp_path / "proj"
+    cfg_file = tmp_path / "cfg_dir" / "config.yaml"
     cfg_home = tmp_path / "cfg"
     env_home = tmp_path / "env"
-    project.mkdir()
-    (project / "config.yaml").write_text(
+    cfg_file.parent.mkdir(parents=True, exist_ok=True)
+    cfg_file.write_text(
         yaml.safe_dump({"home": str(cfg_home)}), encoding="utf-8"
     )
-    monkeypatch.setattr(store, "PROJECT_DIR", project)
+    monkeypatch.setenv("WP_CONFIG", str(cfg_file))
 
-    assert store.data_dir() == cfg_home  # config home beats project dir
+    assert store.data_dir() == cfg_home  # config home beats default
 
     monkeypatch.setenv("WP_HOME", str(env_home))
     assert store.data_dir() == env_home  # WP_HOME beats config home
 
     monkeypatch.delenv("WP_HOME")
-    (project / "config.yaml").write_text(
+    cfg_file.write_text(
         yaml.safe_dump({"home": None}), encoding="utf-8"
     )
     assert store.data_dir() == Path.home() / ".waypoint"  # default store fallback
@@ -82,27 +82,30 @@ def test_non_dict_bookmarks_raises(monkeypatch, tmp_path):
 
 
 def test_corrupt_config_raises(monkeypatch, tmp_path):
-    monkeypatch.setattr(store, "PROJECT_DIR", tmp_path)
-    (tmp_path / "config.yaml").write_text(": : bad\n", encoding="utf-8")
+    cfg_file = tmp_path / "config.yaml"
+    monkeypatch.setenv("WP_CONFIG", str(cfg_file))
+    cfg_file.write_text(": : bad\n", encoding="utf-8")
     with pytest.raises(store.StoreError):
         store.load_config()
 
 
 def test_save_config_home_preserves_comment(monkeypatch, tmp_path):
-    monkeypatch.setattr(store, "PROJECT_DIR", tmp_path)
+    cfg_file = tmp_path / "config.yaml"
+    monkeypatch.setenv("WP_CONFIG", str(cfg_file))
     store.save_config_home(str(tmp_path / "elsewhere"))
     cfg = store.load_config()
     assert Path(cfg["home"]) == tmp_path / "elsewhere"
-    text = (tmp_path / "config.yaml").read_text(encoding="utf-8")
+    text = cfg_file.read_text(encoding="utf-8")
     assert "Where waypoint.yaml lives" in text
 
 
 def test_save_config_home_none_resets(monkeypatch, tmp_path):
-    monkeypatch.setattr(store, "PROJECT_DIR", tmp_path)
+    cfg_file = tmp_path / "config.yaml"
+    monkeypatch.setenv("WP_CONFIG", str(cfg_file))
     store.save_config_home(str(tmp_path / "elsewhere"))
     store.save_config_home(None)
     assert store.load_config()["home"] is None
-    text = (tmp_path / "config.yaml").read_text(encoding="utf-8")
+    text = cfg_file.read_text(encoding="utf-8")
     assert "home: null" in text
 
 
@@ -145,8 +148,9 @@ def test_history_non_list_raises(monkeypatch, tmp_path):
 
 
 def test_non_string_config_home_raises(monkeypatch, tmp_path):
-    monkeypatch.setattr(store, "PROJECT_DIR", tmp_path)
-    (tmp_path / "config.yaml").write_text("home: 123\n", encoding="utf-8")
+    cfg_file = tmp_path / "config.yaml"
+    monkeypatch.setenv("WP_CONFIG", str(cfg_file))
+    cfg_file.write_text("home: 123\n", encoding="utf-8")
     with pytest.raises(store.StoreError):
         store.load_config()
 
@@ -158,7 +162,7 @@ def test_atomic_write_creates_nested_parent_dirs(tmp_path):
     assert target.read_text(encoding="utf-8") == "content"
 
 
-def test_bookmarks_path_prefers_cwd(monkeypatch, tmp_path):
+def test_bookmarks_and_history_path_ignore_cwd(monkeypatch, tmp_path):
     data_home = tmp_path / "global_data"
     data_home.mkdir()
     _isolate(monkeypatch, tmp_path, home=data_home)
@@ -170,51 +174,46 @@ def test_bookmarks_path_prefers_cwd(monkeypatch, tmp_path):
         yaml.safe_dump({"bookmarks": {"local": str(local_dir)}, "default": "local"}),
         encoding="utf-8",
     )
-
-    monkeypatch.chdir(local_dir)
-    assert store.bookmarks_path() == local_wp
-    b = store.load_bookmarks()
-    assert b.bookmarks == {"local": str(local_dir)}
-    assert b.default == "local"
-
-    # Saving modifies the cwd file, not global
-    store.save_bookmarks(store.Bookmarks(bookmarks={"local2": str(local_dir)}, default="local2"))
-    assert (local_dir / "waypoint.yaml").is_file()
-    assert not (data_home / "waypoint.yaml").exists()
-
-
-def test_history_path_prefers_cwd(monkeypatch, tmp_path):
-    data_home = tmp_path / "global_data"
-    data_home.mkdir()
-    _isolate(monkeypatch, tmp_path, home=data_home)
-
-    local_dir = tmp_path / "local_proj"
-    local_dir.mkdir()
     local_hist = local_dir / "history.yaml"
     local_hist.write_text(yaml.safe_dump([r"C:\local_origin"]), encoding="utf-8")
 
     monkeypatch.chdir(local_dir)
-    assert store.history_path() == local_hist
-    assert store.load_history() == [r"C:\local_origin"]
+    # Store paths resolve to global data_home, ignoring local directory files (A1 resolution)
+    assert store.bookmarks_path() == data_home / "waypoint.yaml"
+    assert store.history_path() == data_home / "history.yaml"
 
-    # Saving modifies the cwd file, not global
-    store.save_history([r"C:\local_origin", r"C:\local_dest"])
-    assert store.load_history() == [r"C:\local_origin", r"C:\local_dest"]
-    assert not (data_home / "history.yaml").exists()
+    b = store.Bookmarks(bookmarks={"global_bm": str(data_home)}, default="global_bm")
+    store.save_bookmarks(b)
+    assert (data_home / "waypoint.yaml").is_file()
+
+    store.save_history([r"C:\global_origin"])
+    assert store.load_history() == [r"C:\global_origin"]
 
 
-def test_independent_cwd_resolution(monkeypatch, tmp_path):
-    data_home = tmp_path / "global_data"
+def test_concurrent_history_recording_no_loss(monkeypatch, tmp_path):
+    import concurrent.futures
+    import time
+
+    from waypoint.commands.history import cmd_record_history
+    from waypoint.resolver import RecordHistoryCmd
+
+    data_home = tmp_path / "concurrent_data"
     data_home.mkdir()
     _isolate(monkeypatch, tmp_path, home=data_home)
 
-    local_dir = tmp_path / "local_proj"
-    local_dir.mkdir()
-    (local_dir / "waypoint.yaml").write_text("bookmarks: {}\ndefault: null\n", encoding="utf-8")
+    def worker(worker_id: int) -> None:
+        for i in range(10):
+            cmd = RecordHistoryCmd(origins=[f"C:\\concurrent_{worker_id}_{i}"])
+            cmd_record_history(cmd)
+            time.sleep(0.002)
 
-    monkeypatch.chdir(local_dir)
-    assert store.bookmarks_path() == local_dir / "waypoint.yaml"
-    assert store.history_path() == data_home / "history.yaml"
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
+        futures = [ex.submit(worker, w) for w in range(4)]
+        concurrent.futures.wait(futures)
+
+    hist = store.load_history()
+    # 4 workers * 10 entries = 40 unique entries recorded with locking
+    assert len(hist) == 40
 
 
 def test_atomic_write_retries_transient_permission_error(monkeypatch, tmp_path):

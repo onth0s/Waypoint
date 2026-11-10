@@ -37,13 +37,14 @@ def cmd_record_history(cmd: RecordHistoryCmd) -> int:
     """Record origin paths directly into history.yaml."""
     if not cmd.origins:
         return EXIT_OK
-    entries = store.load_history()
-    modified = False
-    for origin in cmd.origins:
-        if push_unique_history(entries, origin):
-            modified = True
-    if modified:
-        store.save_history(entries)
+    with store.transaction():
+        entries = store.load_history()
+        modified = False
+        for origin in cmd.origins:
+            if push_unique_history(entries, origin):
+                modified = True
+        if modified:
+            store.save_history(entries)
     return EXIT_OK
 
 

@@ -51,27 +51,31 @@ def cmd_add(cmd: AddCmd, console: Console) -> int:
         err(console, f"not a directory: {target}")
         return EXIT_ERROR
     name = prompt_name(b, explicit_alias, console)
-    b.bookmarks[name] = target
-    b.restore_default_if_readded(name)
-    store.save_bookmarks(b)
+    with store.transaction():
+        # Reload under lock in case another process added bookmarks
+        b = store.load_bookmarks()
+        b.bookmarks[name] = target
+        b.restore_default_if_readded(name)
+        store.save_bookmarks(b)
     ok(console, f"Saved {name} -> {target}")
     return EXIT_OK
 
 
 def cmd_rm(cmd: RmCmd, console: Console) -> int:
     alias = cmd.alias
-    b = store.load_bookmarks()
-    if (
-        alias not in b.bookmarks
-        and alias.endswith(" *")
-        and alias.removesuffix(" *") in b.bookmarks
-    ):
-        alias = alias.removesuffix(" *")
-    if alias not in b.bookmarks:
-        err(console, f"No bookmark {alias!r}.")
-        return EXIT_ERROR
-    was_default = b.remove(alias)
-    store.save_bookmarks(b)
+    with store.transaction():
+        b = store.load_bookmarks()
+        if (
+            alias not in b.bookmarks
+            and alias.endswith(" *")
+            and alias.removesuffix(" *") in b.bookmarks
+        ):
+            alias = alias.removesuffix(" *")
+        if alias not in b.bookmarks:
+            err(console, f"No bookmark {alias!r}.")
+            return EXIT_ERROR
+        was_default = b.remove(alias)
+        store.save_bookmarks(b)
     ok(console, f"Removed {alias}")
     if was_default:
         warn(console, "default bookmark removed -- run: [bold]wp default <alias>[/bold]")
@@ -81,15 +85,16 @@ def cmd_rm(cmd: RmCmd, console: Console) -> int:
 def cmd_mv(cmd: MvCmd, console: Console) -> int:
     alias = cmd.alias
     new_path = os.path.abspath(os.path.expanduser(cmd.new_path))
-    b = store.load_bookmarks()
-    if alias not in b.bookmarks:
-        err(console, f"No bookmark {alias!r}.")
-        return EXIT_ERROR
     if not os.path.isdir(new_path):
         err(console, f"not a directory: {new_path}")
         return EXIT_ERROR
-    b.bookmarks[alias] = new_path
-    store.save_bookmarks(b)
+    with store.transaction():
+        b = store.load_bookmarks()
+        if alias not in b.bookmarks:
+            err(console, f"No bookmark {alias!r}.")
+            return EXIT_ERROR
+        b.bookmarks[alias] = new_path
+        store.save_bookmarks(b)
     ok(console, f"Moved {alias} -> {new_path}")
     return EXIT_OK
 
@@ -184,18 +189,19 @@ def set_temp_slot(target: str, b: store.Bookmarks, console: Console) -> int:
 
 
 def set_default_target(arg: str | None, console: Console) -> int:
-    b = store.load_bookmarks()
-    if arg == ".":
-        return set_temp_slot(os.getcwd(), b, console)
-    if arg is None:
-        return set_temp_slot(clipboard.clipboard_path() or os.getcwd(), b, console)
-    if arg in b.bookmarks:
-        b.set_default(arg)
-        store.save_bookmarks(b)
-        ok(console, f"Default is now {arg}")
-        return EXIT_OK
-    if looks_like_path(arg):
-        return set_temp_slot(os.path.abspath(os.path.expanduser(arg)), b, console)
+    with store.transaction():
+        b = store.load_bookmarks()
+        if arg == ".":
+            return set_temp_slot(os.getcwd(), b, console)
+        if arg is None:
+            return set_temp_slot(clipboard.clipboard_path() or os.getcwd(), b, console)
+        if arg in b.bookmarks:
+            b.set_default(arg)
+            store.save_bookmarks(b)
+            ok(console, f"Default is now {arg}")
+            return EXIT_OK
+        if looks_like_path(arg):
+            return set_temp_slot(os.path.abspath(os.path.expanduser(arg)), b, console)
     raise store.BookmarkNotFoundError(arg)
 
 

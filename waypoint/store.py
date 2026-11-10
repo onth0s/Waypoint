@@ -5,9 +5,18 @@
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
+
+if sys.platform == "win32":
+    import msvcrt
+else:
+    msvcrt = None  # type: ignore[assignment]
 
 import yaml
 
@@ -20,12 +29,14 @@ __all__ = [
     "data_dir",
     "bookmarks_path",
     "history_path",
+    "config_path",
     "load_config",
     "save_config_home",
     "load_bookmarks",
     "save_bookmarks",
     "load_history",
     "save_history",
+    "transaction",
     "PROJECT_DIR",
 ]
 
@@ -81,11 +92,45 @@ class Bookmarks:
         return False
 
 
+@contextmanager
+def transaction(target_dir: Path | None = None, timeout: float = 1.0) -> Iterator[None]:
+    """Cross-process lock guarding read-modify-write operations on the store."""
+    lock_dir = target_dir or data_dir()
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    lock_file = lock_dir / ".store.lock"
+
+    try:
+        fd = os.open(str(lock_file), os.O_RDWR | os.O_CREAT)
+    except OSError:
+        # Fall open if lock file cannot be opened (e.g. read-only environment)
+        yield
+        return
+
+    start_time = time.monotonic()
+    locked = False
+    while time.monotonic() - start_time < timeout:
+        try:
+            if msvcrt is not None:
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            locked = True
+            break
+        except (OSError, PermissionError):
+            time.sleep(0.01)
+
+    try:
+        yield
+    finally:
+        if locked and msvcrt is not None:
+            with suppress(OSError):
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        with suppress(OSError):
+            os.close(fd)
+
+
 def data_dir() -> Path:
     """Where waypoint.yaml and history.yaml live by default.
 
     Resolution order: WP_HOME -> config home -> ~/.waypoint.
-    Individual data files in the current working directory take precedence.
     """
     env = os.environ.get("WP_HOME")
     if env and env.strip():
@@ -97,22 +142,38 @@ def data_dir() -> Path:
 
 
 def bookmarks_path() -> Path:
-    local = Path.cwd() / "waypoint.yaml"
-    if local.is_file():
-        return local
     return data_dir() / "waypoint.yaml"
 
 
 def history_path() -> Path:
-    local = Path.cwd() / "history.yaml"
-    if local.is_file():
-        return local
     return data_dir() / "history.yaml"
 
 
+def config_path() -> Path:
+    """Location of config.yaml.
+
+    Resolution: WP_CONFIG env var > %APPDATA%/waypoint/config.yaml (or ~/.waypoint/config.yaml).
+    If a legacy config.yaml exists in PROJECT_DIR and the new file does not, it is read as fallback.
+    """
+    env = os.environ.get("WP_CONFIG")
+    if env and env.strip():
+        return Path(env).expanduser()
+    appdata = os.environ.get("APPDATA")
+    if appdata and appdata.strip():
+        target = Path(appdata) / "waypoint" / "config.yaml"
+    else:
+        target = Path.home() / ".waypoint" / "config.yaml"
+
+    if not target.is_file():
+        legacy = PROJECT_DIR / "config.yaml"
+        if legacy.is_file():
+            return legacy
+    return target
+
+
 def load_config() -> dict[str, str | None]:
-    """Read config.yaml from the project dir. Missing file -> default settings."""
-    path = PROJECT_DIR / "config.yaml"
+    """Read config.yaml. Missing file -> default settings."""
+    path = config_path()
     if not path.is_file():
         return {"home": None}
     try:
@@ -145,7 +206,16 @@ def save_config_home(path: str | None) -> None:
         "# Where waypoint.yaml lives. Default: ~/.waypoint\n"
         f"home: {home}\n"
     )
-    _atomic_write(PROJECT_DIR / "config.yaml", payload)
+    cfg_file = config_path()
+    # If WP_CONFIG was not explicitly set and config_path returned legacy in PROJECT_DIR,
+    # migrate write to preferred appdata location.
+    if not os.environ.get("WP_CONFIG") and cfg_file == PROJECT_DIR / "config.yaml":
+        appdata = os.environ.get("APPDATA")
+        if appdata and appdata.strip():
+            cfg_file = Path(appdata) / "waypoint" / "config.yaml"
+        else:
+            cfg_file = Path.home() / ".waypoint" / "config.yaml"
+    _atomic_write(cfg_file, payload)
 
 
 def load_bookmarks() -> Bookmarks:

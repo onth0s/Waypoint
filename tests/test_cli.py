@@ -1106,7 +1106,7 @@ def test_ls_groups_same_path_aliases(monkeypatch, tmp_path, capsys):
     assert "alias1 *, alias2" in out
 
 
-def test_cli_uses_cwd_waypoint_yaml(monkeypatch, tmp_path, capsys):
+def test_cli_ignores_cwd_waypoint_yaml(monkeypatch, tmp_path, capsys):
     local_dir = tmp_path / "local_ws"
     local_dir.mkdir()
     local_target = tmp_path / "local_target"
@@ -1117,26 +1117,21 @@ def test_cli_uses_cwd_waypoint_yaml(monkeypatch, tmp_path, capsys):
     )
     monkeypatch.chdir(local_dir)
 
-    # test `wp ls`
+    # test `wp ls` uses global store, ignoring localbm in cwd
     rc = _run(monkeypatch, tmp_path, ["ls"])
     out = capsys.readouterr().out
     assert rc == 0
-    assert "localbm" in out
+    assert "localbm" not in out
+    assert "wp" in out
 
-    # test `wp <alias>`
-    rc = _run(monkeypatch, tmp_path, ["localbm"])
-    out = capsys.readouterr().out
-    assert rc == 0
-    assert out.strip() == str(local_target)
-
-    # test `wp store`
+    # test `wp store` reflects global data directory, not cwd
     rc = _run(monkeypatch, tmp_path, ["store"])
     out = capsys.readouterr().out
     assert rc == 0
-    assert str(local_dir / "waypoint.yaml") in out
+    assert str(local_dir / "waypoint.yaml") not in out
 
 
-def test_cli_uses_cwd_history_yaml(monkeypatch, tmp_path, capsys):
+def test_cli_ignores_cwd_history_yaml(monkeypatch, tmp_path, capsys):
     local_dir = tmp_path / "local_ws"
     local_dir.mkdir()
     dest = tmp_path / "somewhere"
@@ -1147,17 +1142,17 @@ def test_cli_uses_cwd_history_yaml(monkeypatch, tmp_path, capsys):
     )
     monkeypatch.chdir(local_dir)
 
-    # test `wp history`
+    # test `wp history` uses global history, ignoring cwd history file
     rc = _run(monkeypatch, tmp_path, ["history"])
     out = capsys.readouterr().out
     assert rc == 0
-    assert str(dest) in out
+    assert str(dest) not in out
 
-    # test `wp store`
+    # test `wp store` reflects global history file, not cwd
     rc = _run(monkeypatch, tmp_path, ["store"])
     out = capsys.readouterr().out
     assert rc == 0
-    assert str(local_dir / "history.yaml") in out
+    assert str(local_dir / "history.yaml") not in out
 
 
 # --- delete + recreate scenarios -------------------------------------------

@@ -41,9 +41,10 @@ def record_origin(target: str) -> None:
     origin = os.getcwd()
     if os.path.normcase(origin) == os.path.normcase(target):
         return
-    entries = store.load_history()
-    if push_unique_history(entries, origin):
-        store.save_history(entries)
+    with store.transaction():
+        entries = store.load_history()
+        if push_unique_history(entries, origin):
+            store.save_history(entries)
 
 
 def cmd_nav(cmd: NavCmd, console: Console) -> int:

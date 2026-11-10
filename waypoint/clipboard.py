@@ -15,7 +15,7 @@ def clipboard_path() -> str | None:
         return None
     if not raw:
         return None
-    text: str = raw.strip().strip('"')
+    text: str = raw.strip().strip("'\"").strip()
     if os.path.isdir(text):
         return text
     if os.path.isfile(text):

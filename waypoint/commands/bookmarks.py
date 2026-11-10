@@ -120,13 +120,26 @@ def cmd_ls(console: Console) -> int:
 
     cwd = os.path.normcase(os.path.abspath(os.getcwd()))
 
-    # Group aliases by normalized path while preserving first-seen order
-    path_groups: dict[str, list[str]] = {}
+    # Single-pass grouping: collect aliases and path info together
+    # path_groups: norm_path -> {"path": display_path, "aliases": [alias, ...], "alive": is_alive}
+    path_groups: dict[str, dict[str, object]] = {}
+    missing_count = 0
+
     for alias, path in b.bookmarks.items():
         norm = os.path.normcase(path)
         if norm not in path_groups:
-            path_groups[norm] = []
-        path_groups[norm].append(alias)
+            is_alive = os.path.isdir(path)
+            if not is_alive:
+                missing_count += 1
+            path_groups[norm] = {
+                "path": path,
+                "aliases": [alias],
+                "alive": is_alive,
+            }
+        else:
+            aliases_list = path_groups[norm]["aliases"]
+            assert isinstance(aliases_list, list)
+            aliases_list.append(alias)
 
     table = Table(
         Column("Alias", style="cyan"),
@@ -135,36 +148,25 @@ def cmd_ls(console: Console) -> int:
         show_edge=True,
     )
 
-    # Reconstruct actual path for each norm key
-    path_map: dict[str, str] = {}
-    for _alias, path in b.bookmarks.items():
-        norm = os.path.normcase(path)
-        if norm not in path_map:
-            path_map[norm] = path
-
-    for norm, aliases in path_groups.items():
-        path = path_map[norm]
+    for _norm, info in path_groups.items():
+        path = str(info["path"])
+        aliases = info["aliases"]
+        assert isinstance(aliases, list)
+        is_alive = bool(info["alive"])
         has_default = any(a == b.default for a in aliases)
         is_cwd = os.path.normcase(os.path.abspath(path)) == cwd
-        is_alive = os.path.isdir(path)
+
         formatted_aliases = [
             f"{a} *" if a == b.default else a for a in aliases
         ]
-        # escape(): a bracketed segment (C:\dev\[draft]\proj) otherwise matches
-        # rich's tag regex and silently loses its brackets.
+        # escape(): bracketed segments otherwise match rich tag regex
         alias_str = escape(", ".join(formatted_aliases))
-        # "not dim" is load-bearing -- dead rows carry a "dim" base style, and an
-        # inline tag only overrides the properties it names, so plain [red]
-        # inherits dim and renders the marker fainter than the live path.
         safe_path = escape(path)
         marker = " [red not dim][MISSING][/red not dim]" if not is_alive else ""
         current_row_style = row_style(has_default, is_cwd, is_alive)
         table.add_row(alias_str, safe_path + marker, style=current_row_style)
 
     console.print(table)
-    missing_count = sum(
-        1 for norm in path_groups if not os.path.isdir(path_map[norm])
-    )
     if missing_count:
         warn(
             console,

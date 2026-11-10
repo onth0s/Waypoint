@@ -302,9 +302,13 @@ def _parse_add(rest: list[str]) -> Command:
 
 def looks_like_path(arg: str) -> bool:
     """Return True if arg looks like a filesystem path rather than a bookmark alias."""
-    if arg in ("~", ".", ".."):
+    if arg in ("~", ".", "..") or arg.startswith("~"):
         return True
     if any(sep in arg for sep in ("\\", "/")):
+        return True
+    if arg.startswith("%") and arg.endswith("%") and len(arg) > 2:
+        return True
+    if arg.startswith("$"):
         return True
     return len(arg) == 2 and arg[1] == ":" and arg[0].isalpha()
 

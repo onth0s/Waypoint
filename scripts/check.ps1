@@ -9,8 +9,8 @@ Write-Host "==> Running mypy check..." -ForegroundColor Cyan
 python -m mypy waypoint
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-Write-Host "==> Running pytest suite..." -ForegroundColor Cyan
-python -m pytest -q
+Write-Host "==> Running pytest suite with coverage..." -ForegroundColor Cyan
+python -m pytest -q --cov=waypoint --cov-report=term
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "==> All quality checks passed!" -ForegroundColor Green

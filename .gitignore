@@ -7,17 +7,18 @@ venv/
 .ruff_cache/
 .pytest_cache/
 .mypy_cache/
+.coverage
 dist/
 build/
-# Local config — machine-specific home path override
+# Local config -- machine-specific home path override
 config.yaml
-# Local bookmarks file — created and seeded on first use; machine-specific.
+# Local bookmarks file -- created and seeded on first use; machine-specific.
 waypoint.yaml
-# Local navigation history — created and updated by every wp jump.
+# Local navigation history -- created and updated by every wp jump.
 history.yaml
 # Scratch directories
 tmp/
-# Scratch/docs inside misc/ — protocol and plan are tracked.
+# Scratch/docs inside misc/ -- protocol and plan are tracked.
 misc/*
 !misc/INSPECTOR.md
 !misc/REFACTORING_PLAN.md

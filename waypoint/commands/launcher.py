@@ -9,7 +9,7 @@ from rich.console import Console
 
 from waypoint import store
 from waypoint.commands.nav import default_target, require_dir
-from waypoint.constants import EXIT_ERROR, EXIT_OK, HISTORY_PREVIEW
+from waypoint.constants import EXIT_ERROR, EXIT_OK, HISTORY_PREVIEW, UNDO_STACK
 from waypoint.output import err
 
 __all__ = ["cmd_open", "cmd_help", "_open", "_help"]
@@ -67,7 +67,7 @@ def cmd_help(console: Console, full: bool = False) -> int:
         console.print("  [cyan]wp h \\[N][/cyan]               alias for wp history \\[N]")
         console.print(
             "  [cyan]wp history --all[/cyan]       "
-            "show full navigation history stack (up to 50 entries)"
+            f"show full navigation history stack (up to {UNDO_STACK} entries)"
         )
         console.print(
             "                         (flags: --all, --full, all, full, a, f)"
@@ -139,7 +139,7 @@ def cmd_help(console: Console, full: bool = False) -> int:
         console.print("       - ...")
         console.print("       - \"<newest_directory_path>\"")
         console.print("     Notes: Stack of visited directories (newest at bottom, row 0).")
-        console.print("            Auto-deduped and capped to 50 entries (UNDO_STACK).")
+        console.print(f"            Auto-deduped and capped to {UNDO_STACK} entries (UNDO_STACK).")
         console.print()
         console.print("  [cyan]3. config.yaml[/cyan] (Global Settings in Project Dir)")
         console.print("     Schema:")

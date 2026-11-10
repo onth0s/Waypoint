@@ -12,20 +12,35 @@ from waypoint.constants import EXIT_ERROR, EXIT_OK, HISTORY_PREVIEW
 from waypoint.output import err, hint
 from waypoint.resolver import HistoryCmd, RecordHistoryCmd, UndoCmd
 
-__all__ = ["_undo", "_history", "_record_history_entry"]
+__all__ = [
+    "cmd_undo",
+    "cmd_history",
+    "cmd_record_history",
+    "push_unique_history",
+    "_undo",
+    "_history",
+    "_record_history_entry",
+]
 
 
-def _record_history_entry(cmd: RecordHistoryCmd) -> int:
+def push_unique_history(entries: list[str], path: str) -> bool:
+    """Append path to entries if non-empty and different from the last entry (case-normalized)."""
+    if not path:
+        return False
+    if not entries or os.path.normcase(entries[-1]) != os.path.normcase(path):
+        entries.append(path)
+        return True
+    return False
+
+
+def cmd_record_history(cmd: RecordHistoryCmd) -> int:
     """Record origin paths directly into history.yaml."""
     if not cmd.origins:
         return EXIT_OK
     entries = store.load_history()
     modified = False
     for origin in cmd.origins:
-        if origin and (
-            not entries or os.path.normcase(entries[-1]) != os.path.normcase(origin)
-        ):
-            entries.append(origin)
+        if push_unique_history(entries, origin):
             modified = True
     if modified:
         store.save_history(entries)
@@ -37,7 +52,7 @@ def _get_live_entries(raw_entries: list[str]) -> list[tuple[int, str]]:
     return [(i, p) for i, p in enumerate(raw_entries) if os.path.isdir(p)]
 
 
-def _undo(cmd: UndoCmd, console: Console) -> int:
+def cmd_undo(cmd: UndoCmd, console: Console) -> int:
     """Jump to history row N (0 = current dir). Rows newer than the target are
     pruned (unless it's a no-move jump to the current dir, which must keep it)."""
     count = cmd.steps
@@ -58,7 +73,7 @@ def _undo(cmd: UndoCmd, console: Console) -> int:
     return EXIT_OK
 
 
-def _history(cmd: HistoryCmd, console: Console) -> int:
+def cmd_history(cmd: HistoryCmd, console: Console) -> int:
     """Show the recent-directories stack, newest first (row N = `wp undo N`)."""
     raw_entries = store.load_history()
     live = _get_live_entries(raw_entries)
@@ -82,3 +97,9 @@ def _history(cmd: HistoryCmd, console: Console) -> int:
     if hidden > 0:
         hint(console, f"({hidden} more; run [bold]wp h --all[/bold])")
     return EXIT_OK
+
+
+# Backward-compatibility aliases
+_undo = cmd_undo
+_history = cmd_history
+_record_history_entry = cmd_record_history

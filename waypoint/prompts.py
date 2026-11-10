@@ -7,29 +7,42 @@ from rich.markup import escape
 from rich.prompt import Prompt
 
 from waypoint import store
+from waypoint.constants import EXIT_ERROR, WaypointError
 from waypoint.output import err, hint
 from waypoint.resolver import UsageError, validate_alias
 
 
-class _Cancelled(Exception):
+class PromptCancelled(WaypointError):
     """Interactive prompt aborted by the user (EOF / Ctrl+C / 'cancel')."""
+    exit_code: int = EXIT_ERROR
 
 
-def _resolve_collision(name: str, b: store.Bookmarks, console: Console) -> str | None:
-    """Handle 'already exists' prompt. Returns new name, None to re-prompt, or raises _Cancelled."""
+# Backward-compatibility alias
+_Cancelled = PromptCancelled
+
+
+def resolve_collision(name: str, b: store.Bookmarks, console: Console) -> str | None:
+    """Handle 'already exists' prompt.
+
+    Returns new name, None to re-prompt, or raises PromptCancelled.
+    """
     try:
         choice = Prompt.ask(
             f"Bookmark {name!r} already exists -- (o)verride, (r)ename, or (c)ancel?",
             choices=["o", "r", "c", "override", "rename", "cancel"],
         )
     except (EOFError, KeyboardInterrupt):
-        raise _Cancelled from None
+        raise PromptCancelled from None
     if choice in ("c", "cancel"):
-        raise _Cancelled
+        raise PromptCancelled
     if choice in ("r", "rename"):
         return None  # signal: re-prompt
     # "o" / "override": fall through with the same name
     return name
+
+
+# Backward-compatibility alias
+_resolve_collision = resolve_collision
 
 
 def prompt_name(b: store.Bookmarks, explicit: str | None, console: Console) -> str:
@@ -40,7 +53,7 @@ def prompt_name(b: store.Bookmarks, explicit: str | None, console: Console) -> s
             try:
                 name = Prompt.ask("[bold]Bookmark name[/bold]")
             except (EOFError, KeyboardInterrupt):
-                raise _Cancelled from None
+                raise PromptCancelled from None
         try:
             validate_alias(name)
         except UsageError:
@@ -54,7 +67,7 @@ def prompt_name(b: store.Bookmarks, explicit: str | None, console: Console) -> s
                 console,
                 f"Hint: [bold]wp mv {escape(name)} <new_path>[/bold] to repoint instead.",
             )
-            result = _resolve_collision(name, b, console)
+            result = resolve_collision(name, b, console)
             if result is None:
                 name = None
                 continue

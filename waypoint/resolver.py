@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from waypoint.constants import EXIT_USAGE, WaypointError
+
 __all__ = [
     "RESERVED",
     "FORCE_FLAG",
@@ -67,8 +69,9 @@ RESERVED = {
 }
 
 
-class UsageError(Exception):
+class UsageError(WaypointError):
     """Raised on malformed invocations; the cli turns it into an exit code 2."""
+    exit_code: int = EXIT_USAGE
 
 
 @dataclass

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import yaml
 
-from waypoint.constants import UNDO_STACK
+from waypoint.constants import UNDO_STACK, WaypointError
 
 __all__ = [
     "Bookmarks",
@@ -33,11 +33,11 @@ __all__ = [
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 
 
-class StoreError(Exception):
+class StoreError(WaypointError):
     """Raised when a data file is missing, malformed, or corrupt."""
 
 
-class BookmarkNotFoundError(Exception):
+class BookmarkNotFoundError(WaypointError):
     """Raised when a bookmark alias does not exist."""
 
     def __init__(self, alias: str) -> None:
@@ -50,6 +50,35 @@ class Bookmarks:
     bookmarks: dict[str, str]
     default: str | None
     _prev_default: str | None = None
+
+    def set_default(self, alias: str) -> None:
+        """Set a bookmark as default and clear any previously remembered default."""
+        self.default = alias
+        self._prev_default = None
+
+    def remove(self, alias: str) -> bool:
+        """Remove a bookmark.
+
+        If it was default, remember it in _prev_default. Returns True if was default.
+        """
+        was_default = (self.default == alias)
+        if alias in self.bookmarks:
+            del self.bookmarks[alias]
+        if was_default:
+            self._prev_default = alias
+            self.default = None
+        return was_default
+
+    def restore_default_if_readded(self, name: str) -> bool:
+        """If there is no default and name matches _prev_default, restore default.
+
+        Returns True if restored.
+        """
+        if self.default is None and self._prev_default == name:
+            self.default = name
+            self._prev_default = None
+            return True
+        return False
 
 
 def data_dir() -> Path:

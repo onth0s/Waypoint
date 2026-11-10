@@ -8,19 +8,19 @@ import subprocess
 from rich.console import Console
 
 from waypoint import store
-from waypoint.commands.nav import _default_target, _require_dir
+from waypoint.commands.nav import default_target, require_dir
 from waypoint.constants import EXIT_ERROR, EXIT_OK, HISTORY_PREVIEW
 from waypoint.output import err
 
-__all__ = ["_open", "_help"]
+__all__ = ["cmd_open", "cmd_help", "_open", "_help"]
 
 
-def _open(kind: str, console: Console) -> int:
+def cmd_open(kind: str, console: Console) -> int:
     b = store.load_bookmarks()
-    target = _default_target(b, console)
+    target = default_target(b, console)
     if target is None or b.default is None:
         return EXIT_ERROR
-    if not _require_dir(target, b.default, console):
+    if not require_dir(target, b.default, console):
         return EXIT_ERROR
     app = "Explorer" if kind == "explorer" else "VS Code"
     exe = "explorer" if kind == "explorer" else "code"
@@ -40,7 +40,7 @@ def _open(kind: str, console: Console) -> int:
     return EXIT_OK
 
 
-def _help(console: Console, full: bool = False) -> int:
+def cmd_help(console: Console, full: bool = False) -> int:
     if full:
         console.print("[bold cyan]Waypoint[/bold cyan] -- path bookmark CLI (Full Reference)")
         console.print()
@@ -226,3 +226,8 @@ def _help(console: Console, full: bool = False) -> int:
         "(aliases, flags, resolution rules)"
     )
     return EXIT_OK
+
+
+# Backward-compatibility aliases
+_open = cmd_open
+_help = cmd_help

@@ -14,10 +14,30 @@ from waypoint.output import err, hint, ok, warn
 from waypoint.prompts import prompt_name
 from waypoint.resolver import AddCmd, DefaultCmd, GetCmd, MvCmd, RmCmd, SetCmd, looks_like_path
 
-__all__ = ["_add", "_rm", "_ls", "_default", "_set", "_get", "_set_temp_slot", "_mv"]
+__all__ = [
+    "cmd_add",
+    "cmd_rm",
+    "cmd_mv",
+    "cmd_ls",
+    "cmd_default",
+    "cmd_set",
+    "cmd_get",
+    "set_default_target",
+    "row_style",
+    "_add",
+    "_rm",
+    "_ls",
+    "_default",
+    "_set",
+    "_get",
+    "_set_temp_slot",
+    "_mv",
+    "_row_style",
+    "_set_default",
+]
 
 
-def _add(cmd: AddCmd, console: Console) -> int:
+def cmd_add(cmd: AddCmd, console: Console) -> int:
     explicit_alias, path_arg = cmd.alias, cmd.path
     b = store.load_bookmarks()
     if path_arg is not None:
@@ -32,15 +52,13 @@ def _add(cmd: AddCmd, console: Console) -> int:
         return EXIT_ERROR
     name = prompt_name(b, explicit_alias, console)
     b.bookmarks[name] = target
-    if b.default is None and b._prev_default == name:
-        b.default = name
-        b._prev_default = None
+    b.restore_default_if_readded(name)
     store.save_bookmarks(b)
     ok(console, f"Saved {name} -> {target}")
     return EXIT_OK
 
 
-def _rm(cmd: RmCmd, console: Console) -> int:
+def cmd_rm(cmd: RmCmd, console: Console) -> int:
     alias = cmd.alias
     b = store.load_bookmarks()
     if (
@@ -52,11 +70,7 @@ def _rm(cmd: RmCmd, console: Console) -> int:
     if alias not in b.bookmarks:
         err(console, f"No bookmark {alias!r}.")
         return EXIT_ERROR
-    was_default = b.default == alias
-    del b.bookmarks[alias]
-    if was_default:
-        b._prev_default = alias
-        b.default = None
+    was_default = b.remove(alias)
     store.save_bookmarks(b)
     ok(console, f"Removed {alias}")
     if was_default:
@@ -64,7 +78,7 @@ def _rm(cmd: RmCmd, console: Console) -> int:
     return EXIT_OK
 
 
-def _mv(cmd: MvCmd, console: Console) -> int:
+def cmd_mv(cmd: MvCmd, console: Console) -> int:
     alias = cmd.alias
     new_path = os.path.abspath(os.path.expanduser(cmd.new_path))
     b = store.load_bookmarks()
@@ -80,7 +94,7 @@ def _mv(cmd: MvCmd, console: Console) -> int:
     return EXIT_OK
 
 
-def _row_style(has_default: bool, is_cwd: bool, is_alive: bool = True) -> str | None:
+def row_style(has_default: bool, is_cwd: bool, is_alive: bool = True) -> str | None:
     """Row style for a bookmark: default marker, current-dir highlight, or both."""
     if not is_alive:
         return "dim"
@@ -93,7 +107,7 @@ def _row_style(has_default: bool, is_cwd: bool, is_alive: bool = True) -> str | 
     return None
 
 
-def _ls(console: Console) -> int:
+def cmd_ls(console: Console) -> int:
     b = store.load_bookmarks()
     if not b.bookmarks:
         hint(console, "No bookmarks yet. Add one with: [bold]wp add[/bold]")
@@ -139,8 +153,8 @@ def _ls(console: Console) -> int:
         # inherits dim and renders the marker fainter than the live path.
         safe_path = escape(path)
         marker = " [red not dim][MISSING][/red not dim]" if not is_alive else ""
-        row_style = _row_style(has_default, is_cwd, is_alive)
-        table.add_row(alias_str, safe_path + marker, style=row_style)
+        current_row_style = row_style(has_default, is_cwd, is_alive)
+        table.add_row(alias_str, safe_path + marker, style=current_row_style)
 
     console.print(table)
     missing_count = sum(
@@ -157,45 +171,43 @@ def _ls(console: Console) -> int:
     return EXIT_OK
 
 
-def _set_temp_slot(target: str, b: store.Bookmarks, console: Console) -> int:
+def set_temp_slot(target: str, b: store.Bookmarks, console: Console) -> int:
     """Point the default at a directory via the temp slot. Returns exit code."""
     if not os.path.isdir(target):
         err(console, f"not a directory: {target}")
         return EXIT_ERROR
     b.bookmarks[TEMP_SLOT] = target
-    b.default = TEMP_SLOT
-    b._prev_default = None
+    b.set_default(TEMP_SLOT)
     store.save_bookmarks(b)
     ok(console, f"Default is now {TEMP_SLOT} -> {target}")
     return EXIT_OK
 
 
-def _set_default(arg: str | None, console: Console) -> int:
+def set_default_target(arg: str | None, console: Console) -> int:
     b = store.load_bookmarks()
     if arg == ".":
-        return _set_temp_slot(os.getcwd(), b, console)
+        return set_temp_slot(os.getcwd(), b, console)
     if arg is None:
-        return _set_temp_slot(clipboard.clipboard_path() or os.getcwd(), b, console)
+        return set_temp_slot(clipboard.clipboard_path() or os.getcwd(), b, console)
     if arg in b.bookmarks:
-        b.default = arg
-        b._prev_default = None
+        b.set_default(arg)
         store.save_bookmarks(b)
         ok(console, f"Default is now {arg}")
         return EXIT_OK
     if looks_like_path(arg):
-        return _set_temp_slot(os.path.abspath(os.path.expanduser(arg)), b, console)
+        return set_temp_slot(os.path.abspath(os.path.expanduser(arg)), b, console)
     raise store.BookmarkNotFoundError(arg)
 
 
-def _default(cmd: DefaultCmd, console: Console) -> int:
-    return _set_default(cmd.arg, console)
+def cmd_default(cmd: DefaultCmd, console: Console) -> int:
+    return set_default_target(cmd.arg, console)
 
 
-def _set(cmd: SetCmd, console: Console) -> int:
-    return _set_default(cmd.arg, console)
+def cmd_set(cmd: SetCmd, console: Console) -> int:
+    return set_default_target(cmd.arg, console)
 
 
-def _get(cmd: GetCmd, console: Console) -> int:
+def cmd_get(cmd: GetCmd, console: Console) -> int:
     """Print a bookmark's path and copy it to the clipboard (default if no alias)."""
     b = store.load_bookmarks()
     if cmd.alias is not None:
@@ -219,3 +231,16 @@ def _get(cmd: GetCmd, console: Console) -> int:
     else:
         warn(console, "Couldn't copy to clipboard.")
     return EXIT_OK
+
+
+# Backward-compatibility aliases
+_add = cmd_add
+_rm = cmd_rm
+_mv = cmd_mv
+_ls = cmd_ls
+_row_style = row_style
+_set_temp_slot = set_temp_slot
+_set_default = set_default_target
+_default = cmd_default
+_set = cmd_set
+_get = cmd_get

@@ -16,15 +16,22 @@ import sys
 
 from rich.console import Console
 
-from waypoint import store
-from waypoint.commands.bookmarks import _add, _default, _get, _ls, _mv, _rm, _set
-from waypoint.commands.config import _config, _store
-from waypoint.commands.history import _history, _record_history_entry, _undo
-from waypoint.commands.launcher import _help, _open
-from waypoint.commands.nav import _nav
-from waypoint.constants import EXIT_ERROR, EXIT_USAGE
+from waypoint.commands.bookmarks import (
+    cmd_add,
+    cmd_default,
+    cmd_get,
+    cmd_ls,
+    cmd_mv,
+    cmd_rm,
+    cmd_set,
+)
+from waypoint.commands.config import cmd_config, cmd_store
+from waypoint.commands.history import cmd_history, cmd_record_history, cmd_undo
+from waypoint.commands.launcher import cmd_help, cmd_open
+from waypoint.commands.nav import cmd_nav
+from waypoint.constants import EXIT_ERROR, EXIT_USAGE, WaypointError
 from waypoint.output import err, hint
-from waypoint.prompts import _Cancelled
+from waypoint.prompts import PromptCancelled
 from waypoint.resolver import (
     AddCmd,
     Command,
@@ -69,51 +76,48 @@ def main(argv: list[str] | None = None) -> int:
     try:
         cmd = parse_args(args)
         return dispatch(cmd, console)
-    except _Cancelled:
+    except PromptCancelled:
         console.print("[yellow]Cancelled.[/yellow]")
         return EXIT_ERROR
     except UsageError as e:
         err(console, e)
         hint(console, "Run [bold]wp help[/bold] for usage.")
         return EXIT_USAGE
-    except store.StoreError as e:
+    except WaypointError as e:
         err(console, e)
-        return EXIT_ERROR
-    except store.BookmarkNotFoundError as e:
-        err(console, e)
-        return EXIT_ERROR
+        return e.exit_code
 
 
 def dispatch(cmd: Command, console: Console) -> int:
     """Route a parsed command to its handler."""
     if isinstance(cmd, RecordHistoryCmd):
-        return _record_history_entry(cmd)
+        return cmd_record_history(cmd)
     if isinstance(cmd, NavCmd):
-        return _nav(cmd, console)
+        return cmd_nav(cmd, console)
     if isinstance(cmd, UndoCmd):
-        return _undo(cmd, console)
+        return cmd_undo(cmd, console)
     if isinstance(cmd, HistoryCmd):
-        return _history(cmd, console)
+        return cmd_history(cmd, console)
     if isinstance(cmd, AddCmd):
-        return _add(cmd, console)
+        return cmd_add(cmd, console)
     if isinstance(cmd, RmCmd):
-        return _rm(cmd, console)
+        return cmd_rm(cmd, console)
     if isinstance(cmd, MvCmd):
-        return _mv(cmd, console)
+        return cmd_mv(cmd, console)
     if isinstance(cmd, LsCmd):
-        return _ls(console)
+        return cmd_ls(console)
     if isinstance(cmd, DefaultCmd):
-        return _default(cmd, console)
+        return cmd_default(cmd, console)
     if isinstance(cmd, SetCmd):
-        return _set(cmd, console)
+        return cmd_set(cmd, console)
     if isinstance(cmd, GetCmd):
-        return _get(cmd, console)
+        return cmd_get(cmd, console)
     if isinstance(cmd, ConfigCmd):
-        return _config(cmd, console)
+        return cmd_config(cmd, console)
     if isinstance(cmd, StoreCmd):
-        return _store(cmd, console)
+        return cmd_store(cmd, console)
     if isinstance(cmd, HelpCmd):
-        return _help(console, full=cmd.full)
+        return cmd_help(console, full=cmd.full)
     if isinstance(cmd, OpenCmd):
-        return _open(cmd.kind, console)
+        return cmd_open(cmd.kind, console)
     raise UsageError(f"unknown command: {cmd}")

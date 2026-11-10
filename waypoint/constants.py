@@ -9,15 +9,21 @@ __all__ = [
     "EXIT_USAGE",
     "UNDO_STACK",
     "HISTORY_PREVIEW",
+    "WaypointError",
 ]
-
-# Bookmark names
-TEMP_SLOT: str = "temp"
 
 # Exit codes
 EXIT_OK: int = 0
 EXIT_ERROR: int = 1
 EXIT_USAGE: int = 2
+
+# Bookmark names
+TEMP_SLOT: str = "temp"
+
+# Base exception for all Waypoint-specific errors
+class WaypointError(Exception):
+    """Base class for all Waypoint exceptions."""
+    exit_code: int = EXIT_ERROR
 
 # History depth: how many navigation origins `wp undo` can walk back through
 UNDO_STACK: int = 50

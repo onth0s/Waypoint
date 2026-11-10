@@ -9,18 +9,25 @@ from rich.console import Console
 from rich.markup import escape
 
 from waypoint import store
+from waypoint.commands.history import push_unique_history
 from waypoint.constants import EXIT_ERROR, EXIT_OK
 from waypoint.output import err, hint, ok
 from waypoint.resolver import FORCE_FLAG, NavCmd
 
 __all__ = [
+    "cmd_nav",
+    "record_origin",
+    "default_target",
+    "require_dir",
+    "create_dir",
+    "emit_target",
+    "NAV_OUT_ENV",
     "_nav",
     "_default_target",
     "_require_dir",
     "_create_dir",
     "_emit_target",
     "_record_origin",
-    "NAV_OUT_ENV",
 ]
 
 # The wrapper must run -F live so the create prompt is visible, and a live
@@ -29,18 +36,17 @@ __all__ = [
 NAV_OUT_ENV = "WP_NAV_OUT"
 
 
-def _record_origin(target: str) -> None:
+def record_origin(target: str) -> None:
     """Push the pre-jump cwd onto the undo stack (skip no-move / duplicates)."""
     origin = os.getcwd()
     if os.path.normcase(origin) == os.path.normcase(target):
         return
     entries = store.load_history()
-    if entries and os.path.normcase(entries[-1]) == os.path.normcase(origin):
-        return
-    store.save_history(entries + [origin])
+    if push_unique_history(entries, origin):
+        store.save_history(entries)
 
 
-def _nav(cmd: NavCmd, console: Console) -> int:
+def cmd_nav(cmd: NavCmd, console: Console) -> int:
     b = store.load_bookmarks()
     if cmd.alias is not None:
         alias = cmd.alias
@@ -51,22 +57,22 @@ def _nav(cmd: NavCmd, console: Console) -> int:
             return EXIT_ERROR
         label = alias
     else:
-        target = _default_target(b, console)
+        target = default_target(b, console)
         if target is None or b.default is None:
             return EXIT_ERROR
         label = b.default
     if not os.path.isdir(target):
         if not cmd.force:
-            _require_dir(target, label, console)
+            require_dir(target, label, console)
             return EXIT_ERROR
-        if not _create_dir(target, label, console):
+        if not create_dir(target, label, console):
             return EXIT_ERROR
-    _record_origin(target)
-    _emit_target(target, console)
+    record_origin(target)
+    emit_target(target, console)
     return EXIT_OK
 
 
-def _default_target(b: store.Bookmarks, console: Console) -> str | None:
+def default_target(b: store.Bookmarks, console: Console) -> str | None:
     """Resolve the default bookmark's path; print an error and return None on failure."""
     if b.default is None:
         err(console, "No default bookmark.")
@@ -79,7 +85,7 @@ def _default_target(b: store.Bookmarks, console: Console) -> str | None:
     return target
 
 
-def _require_dir(target: str, label: str, console: Console) -> bool:
+def require_dir(target: str, label: str, console: Console) -> bool:
     """Report a missing target and point at the -F recovery."""
     if not os.path.isdir(target):
         err(console, f"Bookmark {label!r} points to a path that doesn't exist: {target}")
@@ -88,7 +94,7 @@ def _require_dir(target: str, label: str, console: Console) -> bool:
     return True
 
 
-def _create_dir(target: str, label: str, console: Console) -> bool:
+def create_dir(target: str, label: str, console: Console) -> bool:
     """Create a missing target directory, parents included. True on success.
 
     -F never prompts: the flag is the consent, so there is nothing to ask. It does
@@ -104,7 +110,7 @@ def _create_dir(target: str, label: str, console: Console) -> bool:
     return True
 
 
-def _emit_target(target: str, console: Console) -> None:
+def emit_target(target: str, console: Console) -> None:
     """Hand the resolved path back to the shell.
 
     -F prints a success line before navigating, so stdout is no longer a single
@@ -122,3 +128,12 @@ def _emit_target(target: str, console: Console) -> None:
             err(console, f"cannot hand off navigation target: {e}")
             # Fall through to stdout so the wrapper still has something to read.
     sys.stdout.write(target + "\n")
+
+
+# Backward-compatibility aliases
+_nav = cmd_nav
+_default_target = default_target
+_require_dir = require_dir
+_create_dir = create_dir
+_emit_target = emit_target
+_record_origin = record_origin

@@ -7,7 +7,15 @@ import types
 from rich.console import Console
 
 from waypoint import clipboard, store
-from waypoint.commands.bookmarks import _add, _get, _ls, _mv, _rm, _row_style
+from waypoint.commands.bookmarks import (
+    cmd_add,
+    cmd_get,
+    cmd_ls,
+    cmd_mv,
+    cmd_rm,
+    row_style,
+    set_default_target,
+)
 from waypoint.constants import EXIT_ERROR, EXIT_OK
 from waypoint.resolver import AddCmd, GetCmd, MvCmd, RmCmd
 
@@ -20,7 +28,7 @@ def test_add_explicit_alias_and_path(tmp_path, capsys):
     target.mkdir()
 
     cmd = AddCmd(alias="work", path=str(target))
-    rc = _add(cmd, console)
+    rc = cmd_add(cmd, console)
     assert rc == EXIT_OK
 
     b = store.load_bookmarks()
@@ -35,7 +43,7 @@ def test_rm_bookmark(tmp_path, capsys):
     store.save_bookmarks(b)
 
     cmd = RmCmd(alias="work")
-    rc = _rm(cmd, console)
+    rc = cmd_rm(cmd, console)
     assert rc == EXIT_OK
 
     b = store.load_bookmarks()
@@ -48,7 +56,7 @@ def test_ls_bookmarks(tmp_path, capsys):
     b = store.Bookmarks(bookmarks={"dev": str(tmp_path)}, default="dev")
     store.save_bookmarks(b)
 
-    rc = _ls(console)
+    rc = cmd_ls(console)
     out = capsys.readouterr().out
     assert rc == EXIT_OK
     assert "dev *" in out
@@ -68,7 +76,7 @@ def test_rm_star_alias_vs_suffix(tmp_path):
 
     # wp rm dev* removes dev*, leaving dev
     cmd = RmCmd(alias="dev*")
-    rc = _rm(cmd, console)
+    rc = cmd_rm(cmd, console)
     assert rc == EXIT_OK
     b = store.load_bookmarks()
     assert "dev*" not in b.bookmarks
@@ -77,7 +85,7 @@ def test_rm_star_alias_vs_suffix(tmp_path):
 
     # wp rm "dev *" removes default dev (using ls label syntax)
     cmd = RmCmd(alias="dev *")
-    rc = _rm(cmd, console)
+    rc = cmd_rm(cmd, console)
     assert rc == EXIT_OK
     b = store.load_bookmarks()
     assert "dev" not in b.bookmarks
@@ -87,7 +95,7 @@ def test_rm_star_alias_vs_suffix(tmp_path):
 def test_ls_empty_bookmarks(capsys):
     console = Console()
     store.save_bookmarks(store.Bookmarks(bookmarks={}, default=None))
-    rc = _ls(console)
+    rc = cmd_ls(console)
     out = capsys.readouterr().out
     assert rc == EXIT_OK
     assert "No bookmarks yet" in out
@@ -103,7 +111,7 @@ def test_get_copies_and_prints(tmp_path, capsys, monkeypatch):
     copied = []
     monkeypatch.setattr(clipboard, "pyperclip", types.SimpleNamespace(copy=copied.append))
 
-    rc = _get(GetCmd(alias="prof"), console)
+    rc = cmd_get(GetCmd(alias="prof"), console)
     out = capsys.readouterr().out
     assert rc == EXIT_OK
     assert copied == [str(target)]
@@ -120,17 +128,17 @@ def test_get_default_when_no_alias(tmp_path, capsys, monkeypatch):
     copied = []
     monkeypatch.setattr(clipboard, "pyperclip", types.SimpleNamespace(copy=copied.append))
 
-    rc = _get(GetCmd(alias=None), console)
+    rc = cmd_get(GetCmd(alias=None), console)
     capsys.readouterr()
     assert rc == EXIT_OK
     assert copied == [str(target)]
 
 
 def test_row_style_combinations():
-    assert _row_style(has_default=False, is_cwd=False) is None
-    assert _row_style(has_default=True, is_cwd=False) == "bold green"
-    assert _row_style(has_default=False, is_cwd=True) == "bold white on bright_black"
-    assert _row_style(has_default=True, is_cwd=True) == "bold green on bright_black"
+    assert row_style(has_default=False, is_cwd=False) is None
+    assert row_style(has_default=True, is_cwd=False) == "bold green"
+    assert row_style(has_default=False, is_cwd=True) == "bold white on bright_black"
+    assert row_style(has_default=True, is_cwd=True) == "bold green on bright_black"
 
 
 def test_ls_highlights_current_dir(monkeypatch, tmp_path, capsys):
@@ -139,7 +147,7 @@ def test_ls_highlights_current_dir(monkeypatch, tmp_path, capsys):
     store.save_bookmarks(b)
     monkeypatch.chdir(tmp_path)
 
-    rc = _ls(console)
+    rc = cmd_ls(console)
     out = capsys.readouterr().out
     assert rc == EXIT_OK
     assert "here" in out
@@ -157,13 +165,13 @@ def test_rm_default_then_recreate_restores_default(tmp_path, capsys):
     store.save_bookmarks(b)
 
     cmd = RmCmd(alias="proj")
-    rc = _rm(cmd, console)
+    rc = cmd_rm(cmd, console)
     assert rc == EXIT_OK
     b = store.load_bookmarks()
     assert b.default is None
 
     cmd = AddCmd(alias="proj", path=str(target))
-    rc = _add(cmd, console)
+    rc = cmd_add(cmd, console)
     assert rc == EXIT_OK
     b = store.load_bookmarks()
     assert b.default == "proj"
@@ -183,11 +191,11 @@ def test_rm_nondefault_then_recreate_does_not_set_default(tmp_path, capsys):
     store.save_bookmarks(b)
 
     cmd = RmCmd(alias="web")
-    rc = _rm(cmd, console)
+    rc = cmd_rm(cmd, console)
     assert rc == EXIT_OK
 
     cmd = AddCmd(alias="web", path=str(web))
-    rc = _add(cmd, console)
+    rc = cmd_add(cmd, console)
     assert rc == EXIT_OK
     b = store.load_bookmarks()
     assert b.default == "dev"
@@ -207,14 +215,13 @@ def test_rm_default_then_explicit_default_clears_prev(tmp_path, capsys):
     store.save_bookmarks(b)
 
     cmd = RmCmd(alias="dev")
-    rc = _rm(cmd, console)
+    rc = cmd_rm(cmd, console)
     assert rc == EXIT_OK
     b = store.load_bookmarks()
     assert b._prev_default == "dev"
 
     # Explicitly setting a new default clears _prev_default
-    from waypoint.commands.bookmarks import _set_default
-    rc = _set_default("web", console)
+    set_default_target("web", console)
     assert rc == EXIT_OK
     b = store.load_bookmarks()
     assert b.default == "web"
@@ -230,11 +237,11 @@ def test_rm_then_recreate_different_alias_no_restore(tmp_path, capsys):
     store.save_bookmarks(b)
 
     cmd = RmCmd(alias="proj")
-    rc = _rm(cmd, console)
+    rc = cmd_rm(cmd, console)
     assert rc == EXIT_OK
 
     cmd = AddCmd(alias="proj2", path=str(target))
-    rc = _add(cmd, console)
+    rc = cmd_add(cmd, console)
     assert rc == EXIT_OK
     b = store.load_bookmarks()
     assert b.default is None
@@ -254,7 +261,7 @@ def test_mv_repoints_bookmark(tmp_path, capsys):
     store.save_bookmarks(b)
 
     cmd = MvCmd(alias="proj", new_path=str(new))
-    rc = _mv(cmd, console)
+    rc = cmd_mv(cmd, console)
     assert rc == EXIT_OK
     b = store.load_bookmarks()
     assert b.bookmarks["proj"] == str(new)
@@ -270,7 +277,7 @@ def test_mv_preserves_default(tmp_path, capsys):
     store.save_bookmarks(b)
 
     cmd = MvCmd(alias="proj", new_path=str(new))
-    rc = _mv(cmd, console)
+    rc = cmd_mv(cmd, console)
     assert rc == EXIT_OK
     b = store.load_bookmarks()
     assert b.default == "proj"
@@ -283,7 +290,7 @@ def test_mv_nonexistent_alias_errors(tmp_path, capsys):
     target.mkdir()
 
     cmd = MvCmd(alias="nope", new_path=str(target))
-    rc = _mv(cmd, console)
+    rc = cmd_mv(cmd, console)
     assert rc == EXIT_ERROR
 
 
@@ -293,14 +300,14 @@ def test_mv_nonexistent_path_errors(tmp_path, capsys):
     store.save_bookmarks(b)
 
     cmd = MvCmd(alias="proj", new_path=str(tmp_path / "nope"))
-    rc = _mv(cmd, console)
+    rc = cmd_mv(cmd, console)
     assert rc == EXIT_ERROR
 
 
 def test_row_style_dead_is_dimmed():
-    assert _row_style(has_default=True, is_cwd=True, is_alive=False) == "dim"
-    assert _row_style(has_default=False, is_cwd=False, is_alive=False) == "dim"
-    assert _row_style(has_default=True, is_cwd=False, is_alive=True) == "bold green"
+    assert row_style(has_default=True, is_cwd=True, is_alive=False) == "dim"
+    assert row_style(has_default=False, is_cwd=False, is_alive=False) == "dim"
+    assert row_style(has_default=True, is_cwd=False, is_alive=True) == "bold green"
 
 
 def test_ls_flags_missing_path(tmp_path, capsys):
@@ -313,7 +320,7 @@ def test_ls_flags_missing_path(tmp_path, capsys):
     )
     store.save_bookmarks(b)
 
-    rc = _ls(console)
+    rc = cmd_ls(console)
     out = capsys.readouterr().out
     assert rc == EXIT_OK
     assert "MISSING" in out
@@ -336,7 +343,7 @@ def test_ls_missing_warning_renders_command_without_literal_tags(tmp_path):
         highlight=False,
         width=200,
     )
-    assert _ls(console) == EXIT_OK
+    assert cmd_ls(console) == EXIT_OK
 
     plain = _ANSI.sub("", buf.getvalue())
     assert "[bold]" not in plain
@@ -349,7 +356,7 @@ def test_ls_all_alive_no_warning(tmp_path, capsys):
     b = store.Bookmarks(bookmarks={"dev": str(tmp_path)}, default=None)
     store.save_bookmarks(b)
 
-    rc = _ls(console)
+    rc = cmd_ls(console)
     out = capsys.readouterr().out
     assert rc == EXIT_OK
     assert "MISSING" not in out
@@ -373,7 +380,7 @@ def test_ls_missing_marker_is_not_dimmed(tmp_path):
         highlight=False,
         width=120,
     )
-    assert _ls(console) == EXIT_OK
+    assert cmd_ls(console) == EXIT_OK
 
     out = buf.getvalue()
     assert "\x1b[31m[MISSING]" in out
@@ -389,6 +396,6 @@ def test_ls_escapes_bracketed_path_segment(tmp_path):
 
     buf = io.StringIO()
     console = Console(file=buf, force_terminal=False, highlight=False, width=120)
-    assert _ls(console) == EXIT_OK
+    assert cmd_ls(console) == EXIT_OK
 
     assert str(target) in buf.getvalue()

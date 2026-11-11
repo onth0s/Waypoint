@@ -9,14 +9,17 @@ from waypoint import store
 
 @pytest.fixture(autouse=True)
 def isolate_project_dir_and_env(monkeypatch, tmp_path):
-    """Automatically isolate PROJECT_DIR, WP_CONFIG, and WP_HOME for every test session."""
+    """Automatically isolate PROJECT_DIR, WP_CONFIG, APPDATA, and WP_HOME for every test session."""
     data_dir = tmp_path / "test_data"
     data_dir.mkdir(exist_ok=True)
     cfg_file = tmp_path / "test_config" / "config.yaml"
     cfg_file.parent.mkdir(exist_ok=True)
+    fake_appdata = tmp_path / "test_appdata"
+    fake_appdata.mkdir(exist_ok=True)
     monkeypatch.setattr(store, "PROJECT_DIR", tmp_path)
     monkeypatch.setenv("WP_HOME", str(data_dir))
     monkeypatch.setenv("WP_CONFIG", str(cfg_file))
+    monkeypatch.setenv("APPDATA", str(fake_appdata))
 
 
 @pytest.fixture()

@@ -46,3 +46,17 @@ Use `rich` (`rich.console.Console`, `rich.table.Table`, `rich.panel.Panel`, `ric
   interaction and print what happened afterwards. A prompt inside a wrapper
   branch also silently costs a side channel (see above), so dropping it is not
   only simpler, it removes a protocol complication.
+
+- Hardcoded seed path shadowing real user bookmarks (`wp` only). When testing,
+  mocking, or migrating store paths (e.g. `config.yaml`, `%APPDATA%`, `WP_HOME`,
+  `WP_CONFIG`), ANY unisolated environment variable or path resolution bug can
+  point the store at an unseeded/empty directory. When `store.load_bookmarks()`
+  finds no `waypoint.yaml`, it auto-seeds a dummy `wp -> PROJECT_DIR` bookmark.
+  To the user, this looks like the entire bookmark database was wiped.
+  Fix:
+  1. `cmd_ls` actively checks if only the default seed bookmark `wp -> PROJECT_DIR`
+     exists and prints an explicit warning pointing to `store.bookmarks_path()` and
+     `wp store` so a shadowed store path is immediately caught.
+  2. Tests and scripts MUST explicitly isolate `APPDATA`, `WP_CONFIG`, and `WP_HOME`
+     to `tmp_path` so user profile files (`~/.waypoint`, `%APPDATA%/waypoint`)
+     are NEVER touched or shadowed during test runs or CLI operations.

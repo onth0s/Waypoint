@@ -101,16 +101,6 @@ def test_ls_empty_bookmarks(capsys):
     assert "No bookmarks yet" in out
 
 
-def test_ls_warns_on_single_seed_bookmark(capsys):
-    console = Console()
-    store.save_bookmarks(store.Bookmarks(bookmarks={"wp": str(store.PROJECT_DIR)}, default="wp"))
-    rc = cmd_ls(console)
-    out = capsys.readouterr().out
-    assert rc == EXIT_OK
-    assert "Only default seed bookmark 'wp' found!" in out
-    assert "Active store is" in out
-
-
 def test_get_copies_and_prints(tmp_path, capsys, monkeypatch):
     console = Console()
     target = tmp_path / "prof"

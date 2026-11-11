@@ -167,14 +167,7 @@ def cmd_ls(console: Console) -> int:
         table.add_row(alias_str, safe_path + marker, style=current_row_style)
 
     console.print(table)
-    if list(b.bookmarks.keys()) == ["wp"] and b.bookmarks.get("wp") == str(store.PROJECT_DIR):
-        warn(
-            console,
-            "Only default seed bookmark 'wp' found! "
-            f"Active store is [bold]{store.bookmarks_path()}[/bold]. "
-            "If your saved bookmarks are missing, check [bold]wp store[/bold] or WP_HOME/config."
-        )
-    elif missing_count:
+    if missing_count:
         warn(
             console,
             f"{missing_count} bookmark(s) point to missing paths -- "

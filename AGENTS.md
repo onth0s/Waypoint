@@ -54,9 +54,9 @@ Use `rich` (`rich.console.Console`, `rich.table.Table`, `rich.panel.Panel`, `ric
   finds no `waypoint.yaml`, it auto-seeds a dummy `wp -> PROJECT_DIR` bookmark.
   To the user, this looks like the entire bookmark database was wiped.
   Fix:
-  1. `cmd_ls` actively checks if only the default seed bookmark `wp -> PROJECT_DIR`
-     exists and prints an explicit warning pointing to `store.bookmarks_path()` and
-     `wp store` so a shadowed store path is immediately caught.
+  1. Test fixture in `conftest.py` actively checks post-test state and raises a
+     test-level warning if only the default seed bookmark `wp -> PROJECT_DIR`
+     was generated or if store resolution ever touches user profile paths.
   2. Tests and scripts MUST explicitly isolate `APPDATA`, `WP_CONFIG`, and `WP_HOME`
      to `tmp_path` so user profile files (`~/.waypoint`, `%APPDATA%/waypoint`)
      are NEVER touched or shadowed during test runs or CLI operations.

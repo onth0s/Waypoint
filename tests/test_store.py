@@ -61,6 +61,8 @@ def test_resolution_order(monkeypatch, tmp_path):
         yaml.safe_dump({"home": None}), encoding="utf-8"
     )
     assert store.data_dir() == Path.home() / ".waypoint"  # default store fallback
+    # Re-isolate WP_HOME before test exit to avoid teardown interaction with user store
+    monkeypatch.setenv("WP_HOME", str(env_home))
 
 
 def test_corrupt_waypoint_raises(monkeypatch, tmp_path):
